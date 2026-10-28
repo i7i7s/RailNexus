@@ -1,21 +1,44 @@
-# Tahap 1 — inti yang memudahkan (sedang berjalan)
+# Tahap 1 dan 2 — status pengembangan
+
+Tahap 1 (inti) dan bagian Tahap 2 yang tidak membutuhkan corpus Trainz nyata sudah dibangun. Semuanya
+baru diuji dengan simulator; gerbang tahap baru lolos setelah tugas di
+[`handoff-windows.md`](handoff-windows.md) dijalankan di TRS19 asli.
 
 Rujukan: PRD bagian 5, 6, 9–13, 27–29. Desain UI (RN-000) ada di kanvas
 https://claude.ai/artifact/D44DxCuuND51aHU3REbVuP. Temuan nyata TrainzUtil ada di [`tahap0.md`](tahap0.md)
 dan tetap berlaku; dokumen ini tidak mengubahnya.
 
 Bagian yang dikerjakan di lingkungan tanpa Trainz (cloud, Linux). Semua yang berhubungan dengan
-Trainz asli diuji dengan `SimulatedTrainz`, bukan TrainzUtil. Daftar pekerjaan yang **harus**
-dijalankan di Windows dengan TRS19 ada di bagian [TODO lokal](#todo-lokal-windows--trs19).
+Trainz asli diuji dengan `SimulatedTrainz`, bukan TrainzUtil. Pekerjaan yang **harus** dijalankan di
+Windows dengan TRS19 ada di [`handoff-windows.md`](handoff-windows.md). Panduan pengguna:
+[`panduan.md`](panduan.md). Format Tahap 3: [`tahap3-spike.md`](tahap3-spike.md).
 
 ## Isi
 
-| Bagian | Isi |
-| --- | --- |
-| `src/RailNexus.Core/Texture` | RN-009 Workshop tekstur dasar: dekoder PNG, kodek TGA, `.texture.txt`, staging, verifikasi baca ulang |
-| `src/RailNexus.App.Core` | ViewModel lintas platform (net10.0) untuk UI-01, UI-02, UI-03, panel Draft, dan pilih pengganti |
-| `src/RailNexus.App` | Aplikasi WPF (net10.0-windows) — view XAML dan composition root saja |
-| `railnexus texture` | Perintah CLI untuk menguji Workshop Tekstur pada aset uji di Trainz asli |
+| Modul | Layar | Kode | Tahap |
+| --- | --- | --- | --- |
+| Sambungkan | UI-01 | `ConnectViewModel`, `TrainzConnectionService` | P0 |
+| Pustaka + pengindeksan | UI-02 | `LibraryViewModel`, `TrainzLibraryIndexer` | P0 |
+| Mau edit apa? | UI-03 | `EditHubViewModel` | P0 |
+| Ganti komponen (P0 + P1) + preview suara A/B | UI-04/05/06/07/08 | `ReplaceViewModel`, `RoleCatalog.All` | P0 / P1 |
+| Komponen & dependency (graf turunan) | UI-04, UI-11 inspeksi | `DependencyViewModel`, `Core/Dependencies` | P0 |
+| Produk & muatan | UI-10 | `CargoViewModel`, `QueueInspector` | P1 inspeksi |
+| Editor aset (formulir, struktur, teks yang dapat disunting, diff) | UI-12 | `EditorViewModel`, `LineDiff` | P0 terbatas · P1 teks |
+| Periksa & perbaiki | UI-13 | `RepairViewModel`, `Diagnosis`, `RepairRules` | P0 dasar |
+| Workshop Tekstur (konversi, metadata) | UI-14/15 | `TextureViewModel`, `Core/Texture` | P0 |
+| Perakit PBR | UI-16 | `PbrViewModel`, `ChannelPacker` | P1 |
+| Workshop Suara (WAV lokal) | UI-17 | `SoundViewModel`, `WavInfo` | P0 preview · P1 ganti WAV |
+| Batch & preset | UI-22 | `BatchViewModel`, `Core/Batch` | P1 |
+| Ringkasan, proses, hasil | UI-23 | `DraftPanelViewModel` | P0 |
+| Riwayat & pemulihan | UI-24 | `HistoryViewModel` | P0 |
+| Pengaturan | UI-25 | `SettingsViewModel` | P0 |
+| Workshop (peta sembilan utilitas) | AC-34 | `WorkshopViewModel`, `ModuleCatalog` | P0 |
+| CLI `texture` | — | `src/RailNexus.Cli/Program.cs` | uji integrasi |
+
+**Belum dibuat** (dan alasannya): penambahan aturan tracksound baru dan diagnosis konfliknya (butuh corpus
+nyata, lihat T11), penggantian referensi mesh library dan otomasi texture-group/script (P1, butuh corpus;
+saat ini tampil sebagai "Referensi lain"), integrasi editor eksternal (P1), diagnosis Gerak & animasi (P1),
+semua kemampuan format Tahap 3 (lihat `tahap3-spike.md`).
 
 ## RN-009 Workshop tekstur dasar
 
@@ -71,75 +94,68 @@ Keputusan:
 - Lokasi data sama dengan CLI (`%LOCALAPPDATA%\RailNexus\tahap0`): indeks dari `railnexus index` dan
   jurnal transaksi dipakai bersama. Pengaturan aplikasi di `%LOCALAPPDATA%\RailNexus\app-settings.json`.
 
-| Layar | ViewModel | Isi |
-| --- | --- | --- |
-| UI-01 Sambungkan | `ConnectViewModel` | Instalasi terdeteksi + folder lain, pemeriksaan berlabel (Advanced Debug Tools, buka ulang Trainz), Hubungkan. Build yang tidak cocok dengan profil = hanya baca |
-| UI-02 Pustaka | `LibraryViewModel` | Cari nama/KUID lewat `LibraryIndex`, chip status dengan jumlah (`LibraryIndex.Count(query)`), keadaan kosong dengan langkah berikut |
-| UI-03 Mau edit apa? | `EditHubViewModel` | Tugas dari `RoleCatalog.Locate` pada config aset; tugas tak tersedia, config rusak, atau modul yang belum ada selalu disertai alasan |
-| UI-04 (minimal) | `ReplaceViewModel` | Slot + konteks yang dipertahankan, kandidat dari pustaka dinilai `ModificationEngine.Evaluate`, tambahkan ke draft |
-| Ringkasan perubahan | `DraftPanelViewModel` | Item draft, pratinjau `Draft.Build` (diurus otomatis / belum pasti), Terapkan & Selesai lewat `TransactionRunner`, hasil berlabel |
+Daftar layar ada di bagian [Isi](#isi). Navigasi kiri: Pustaka dan Perbaikan aktif setelah terhubung,
+Dependency setelah aset dibuka, Workshop sejak awal (mode folder tidak butuh Trainz), Riwayat setelah
+terhubung, Pengaturan selalu.
 
 Batasan yang disengaja:
 
-- **Membaca config memakai pola Tahap 0** (`edit` → baca `config.txt` → `revert`), karena byte yang
+- **Isi aset dibaca dengan pola Tahap 0** (`edit` → salin isi ke snapshot → `revert`), karena byte yang
   dibaca harus sama dengan yang diverifikasi transaksi. `edit` adalah operasi tulis, sehingga di Trainz
-  asli **hanya KUID di `writableTestKuids`** yang dapat dibuka di "Mau edit apa?". Aset lain mendapat
-  pesan "bukan aset uji yang diizinkan". `printconfig` tidak dipakai karena belum ada di profil.
-- **KIND kandidat belum ada di indeks** (kolom kategori `VE;LND` bukan KIND). Untuk peran yang
-  mensyaratkan KIND (suara mesin, bogie) kandidat ditampilkan tetapi tidak dapat dipilih, dengan alasan.
-  Klakson dan suara roda-rel memakai status "Jenis belum dapat dipastikan" sesuai `RoleCatalog`.
-- Dependency, Perbaikan, Workshop, Riwayat: tampil di navigasi tetapi nonaktif dengan alasan.
-  Panel Workshop Tekstur belum ada di aplikasi; mesinnya dapat diuji lewat `railnexus texture`.
+  asli **hanya KUID di `WritableTestKuids`** (Pengaturan) yang dapat dibuka di "Mau edit apa?". Aset lain
+  mendapat pesan "bukan aset uji yang diizinkan". Snapshot menyimpan hash semua berkas dan isi sampai
+  64 MB (berkas teks selalu).
+- **KIND kandidat** baru diketahui setelah "Baca jenis kandidat" (printconfig). Selama `printconfig`
+  belum terverifikasi, peran yang mensyaratkan KIND (suara mesin, bogie, interior, pantograf,
+  spesifikasi mesin) tidak menawarkan kandidat; klakson dan suara roda-rel memakai status
+  "Jenis belum dapat dipastikan" sesuai `RoleCatalog`.
+- **Diagnosis** hanya menyimpulkan "belum terpasang" dari status Trainz; aset yang tidak ada di indeks
+  hanya dicurigai bila Trainz memberi flag M. Pesan validator yang belum dipetakan ditampilkan apa adanya.
+  Satu aturan perbaikan (R001, tambah entri kuid-table), berstatus terpandu.
+- **Graf dependency turunan** memakai config yang sudah terbaca di sesi; `list-dependencies` belum punya
+  parser karena bentuk barisnya belum pernah tertangkap (T10).
 - IBM Plex Sans (SIL OFL 1.1) **tidak dibundel**; aplikasi memakainya bila terpasang, bila tidak
   Segoe UI. Bila nanti dibundel, sertakan teks lisensi OFL.
 
 **Tampilan WPF belum pernah dijalankan atau dilihat.** Yang terverifikasi hanya: XAML terkompilasi,
 seluruh solusi ter-build, dan perilaku ViewModel lolos uji.
 
+## Kriteria penerimaan dengan bukti otomatis (simulator)
+
+| Kriteria | Uji |
+| --- | --- |
+| AC-01, 02, 03, 05, 06, 26, 28 | `ConfigTests`, `DependencyTests` (R001) |
+| AC-04, LIB-01 | `Bogie_candidates_AC04`, `Wrong_kind_is_rejected_with_reason_AC04`, `Reading_candidate_kind_makes_bogie_selectable_LIB01` |
+| AC-08 | `Faulty_dependency_is_not_reported_as_missing_AC08`, `Repair_cards_follow_problem_classes_and_offer_actions_AC08` |
+| AC-09 … AC-14, AC-22 | `TransactionTests`, `Asset_open_elsewhere_is_not_taken_over_AC09`, `External_change_after_draft_stops_with_conflict_AC10`, `Uncertain_submit_is_reconciled_from_history_AC11`, `History_lists_work_and_undo_restores_exact_bytes_AC13`, `Undo_after_external_edit_shows_conflict_AC14` |
+| AC-15 | `Failure_on_fifth_asset_keeps_four_successes_AC15` |
+| AC-16, 17, 18, 19, 25 | `TextureTests`, `ChannelPackerTests`, `Texture_panel_blocks_on_name_collision_until_resolved_AC18`, `Texture_folder_mode_works_without_trainz_AC25` |
+| AC-21 | `Same_kuid_in_two_profiles_stays_separate_CONNECT01_AC21` |
+| AC-24 | `Partial_repair_is_reported_as_partial_not_healthy_AC24` |
+| AC-29 | `Sound_workshop_previews_and_replaces_wav_without_new_kuid_AC29` |
+| AC-30 | `Initial_product_outside_allowed_list_is_a_conflict_AC30` |
+| AC-33, 35, 37 | `Draft_keeps_changes_from_different_modules_AC33`, `Library_search_by_name_kuid_and_status_filter_AC35`, `Draft_survives_navigation_AC37` |
+| AC-34 | `Texture_folder_mode_works_without_trainz_AC25` (peta modul) |
+| EDIT-AC | `Editor_form_saves_plan_and_shows_diff_EDITAC`, `Text_editor_saves_valid_text_and_blocks_invalid_EDITAC` |
+
+Belum ada bukti otomatis: AC-07 (rantai bertingkat hanya diuji di `DependencyGraph`, belum dari Trainz),
+AC-20 (pemilik/cakupan tracksound bersama), AC-23 (pembedaan validasi vs uji visual hanya lewat label
+hasil), AC-27, AC-31, AC-32, AC-38/39 (desain dan tampilan; lihat T2).
+
 ## Status uji (lingkungan cloud, Linux, .NET SDK 10.0.113)
 
-`dotnet test RailNexus.slnx`: 157 dari 158 lolos. Yang gagal,
+`dotnet test RailNexus.slnx`: 211 dari 212 lolos. Yang gagal,
 `TrainzUtilAdapterTests.Edit_folder_from_real_output_shape_must_exist`, adalah uji Tahap 0 yang
 memerlukan path Windows (`C:/…`, sesuai bukti `edit-already-open.json`); di Linux folder sementara
-berbentuk `/tmp/…` sehingga tidak cocok. Di Windows uji ini diharapkan lolos. Uji
-`Path_escaping_asset_folder_is_rejected` yang sebelumnya juga gagal di Linux kini lolos karena
-`SafePath` memperlakukan `\` sebagai pemisah di semua OS.
+berbentuk `/tmp/…`. Di Windows uji ini diharapkan lolos. Seluruh solusi, termasuk `RailNexus.App`
+(WPF), ter-build tanpa peringatan, dan `dotnet publish -p:PublishProfile=win-x64` menghasilkan paket
+mandiri; paket itu belum dijalankan.
+
+**Belum diverifikasi sama sekali:** tampilan dan perilaku WPF (belum pernah dijalankan), pemutar
+suara `MediaPlayer`, dialog berkas, dan seluruh perilaku terhadap TRS19 asli selain yang sudah tercatat di
+`tahap0.md`. Perintah `searchbycategory` dan `printconfig` ada di profil dengan `verified: false`, jadi
+pengindeksan dari aplikasi dan pembacaan KIND kandidat belum berfungsi pada Trainz asli sampai T4.
 
 ## TODO lokal (Windows + TRS19)
 
-Tidak dapat dikerjakan di cloud karena membutuhkan Trainz/TrainzUtil. Jangan tandai perintah baru
-sebagai `verified` di `profiles/trs19.json` sebelum ada keluaran nyata.
-
-1. **Uji otomatis di Windows**: `dotnet test RailNexus.slnx` — harapan semua lolos, termasuk uji path Windows.
-2. **Lihat aplikasi**: `dotnet run --project src/RailNexus.App`. Bandingkan dengan kanvas pada 1440 × 900
-   dan 1280 × 720, juga dengan penskalaan teks Windows 125–150 % (AC-39). Catat panel yang terpotong,
-   kontras teks pada kartu nonaktif, fokus keyboard, dan tombol yang kurang jelas. Pasang IBM Plex Sans bila ingin
-   tampilan sesuai desain.
-3. **Pengaturan**: jalankan aplikasi sekali, lalu isi `%LOCALAPPDATA%\RailNexus\app-settings.json`:
-   `"WritableTestKuids": ["<kuid:-2:117104311>"]` (dan `"TrainzFolder"` bila Trainz tidak di lokasi umum).
-4. **Alur aplikasi pada Trainz asli** (Advanced Debug Tools aktif, Trainz dibuka ulang):
-   Sambungkan → Periksa koneksi (harus "Build 117026" dan "dapat mengedit aset uji") → Pustaka
-   (isi dulu dengan `railnexus index --category TV,VE,CMP` bila kosong) → buka aset uji → pastikan
-   status aset kembali tanpa `E` setelah dibaca (edit sudah di-revert). Aset uji tidak punya klakson,
-   sehingga uji penggantian sungguhan memerlukan aset uji berkendaraan (lihat butir 7).
-5. **Workshop tekstur pada aset uji**:
-   ```bash
-   dotnet run --project src/RailNexus.Cli -- texture --kuid "<kuid:-2:117104311>" --src <png-uji> --name rn_uji --replace --no-undo
-   ```
-   Periksa: transaksi `Succeeded` tanpa masalah validasi baru, "isi terpasang identik dengan hasil
-   staging: True", lalu lihat teksturnya di Trainz (orientasi tidak terbalik, warna/alpha benar).
-   Ulangi dengan PNG ber-alpha (32-bit) dan dengan `--role parameter`. Setelah itu `railnexus undo <txid>`.
-   Bila TRS19 menolak bentuk TGA ini, catat pesan validasinya di `tahap0.md`/dokumen ini.
-6. **Analisis parser yang tertunda** (dari `parse-check` Tahap 0): mengapa `tracksound` 0/60 pada
-   kategori TV/VE (nama container berbeda, atau aturan berada di aset bogie/rel lain?), dan
-   `CFG-UNEXPECTED` pada baris yang hanya berisi KUID. Jalankan `parse-check`, catat pola barisnya
-   (tanpa menyimpan isi config milik pembuat lain), lalu perbaiki parser/peran dengan fixture sintetis.
-7. **Aset uji kendaraan**: perluas `make-test-asset` (atau buat aset uji kedua) dengan `hornsound`,
-   `enginesound`, `bogeys`, dan `kuid-table` agar penggantian peran P0 dapat diuji di Trainz asli
-   sebelum status peran naik dari "Terpandu" menjadi "Otomatis teruji".
-8. **KIND kandidat**: tentukan sumber KIND yang dapat dipercaya (mis. `printconfig` per kandidat atau
-   perintah lain yang terbukti), tangkap keluarannya ke corpus, baru kemudian isi indeks dan aktifkan
-   pemilihan kandidat suara mesin/bogie.
-9. **Membaca aset non-uji tanpa `edit`**: bila `printconfig` akan dipakai sebagai jalur baca-saja di
-   aplikasi, tambahkan ke profil sebagai `verified: false`, tangkap keluaran nyatanya, dan buktikan
-   bahwa teksnya sama dengan `config.txt` di folder edit (Tahap 0 menemukan Trainz menormalkan config).
+Dipindah dan diperinci di [`handoff-windows.md`](handoff-windows.md) (T1–T14).
