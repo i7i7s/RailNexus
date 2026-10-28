@@ -24,7 +24,7 @@ public partial class App : Application
         var profilePath = Path.Combine(AppContext.BaseDirectory, "profiles", "trs19.json");
         var connections = new TrainzConnectionService(settings.Settings, profilePath, Path.Combine(appData, "tahap0"), new ProcessRunner());
 
-        _main = new MainViewModel(connections, settings);
+        _main = new MainViewModel(connections, settings, new WpfAudioPlayer());
         MainWindow = new MainWindow { DataContext = _main };
         MainWindow.Show();
     }

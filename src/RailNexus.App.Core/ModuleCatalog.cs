@@ -19,7 +19,7 @@ public static class ModuleCatalog
         new("Editor Aset + Pusat Perbaikan", "AssetX",
             "Formulir, struktur, teks, dan diff config; diagnosis dependency.", "P0 terbatas · P1 penuh", Limited),
         new("Workshop Suara", "Soundz",
-            "Dengarkan berkas suara yang dapat diakses, pilih pengganti, ganti WAV lokal.", "P0 preview dasar · P1 set", NotYet),
+            "Dengarkan berkas WAV yang dapat diakses (A/B), pilih pengganti, ganti WAV lokal lewat transaksi.", "P0 preview dasar · P1 set", Limited),
         new("Lihat Model", "Trainz Mesh Viewer 2",
             "Orbit, LOD, material, attachment.", "P2", Research),
         new("Gerak & Animasi", "Train Swayer Utility",

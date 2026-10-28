@@ -7,6 +7,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="2*" />
@@ -78,7 +79,20 @@
             </ListBox>
         </DockPanel>
 
-        <DockPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,16,0,0">
+        <!-- Preview A/B untuk peran suara; bukan simulasi suara di Trainz. -->
+        <Border Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource Card}" Margin="0,16,0,0" Padding="12"
+                Visibility="{Binding CanPreview, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Button Style="{StaticResource Button.Small}" Content="Dengarkan yang sekarang" Command="{Binding PreviewCurrentCommand}" />
+                    <Button Style="{StaticResource Button.Small}" Content="Dengarkan pengganti" Command="{Binding PreviewCandidateCommand}" Margin="8,0" />
+                    <Button Style="{StaticResource Button.Small}" Content="Stop" Command="{Binding StopPreviewCommand}" />
+                </StackPanel>
+                <TextBlock Text="{Binding PreviewStatus}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </DockPanel>
+        </Border>
+
+        <DockPanel Grid.Row="3" Grid.ColumnSpan="2" Margin="0,16,0,0">
             <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Gunakan pengganti ini" Command="{Binding AddCommand}"
                     ToolTip="{Binding AddDisabledReason}" />
             <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">

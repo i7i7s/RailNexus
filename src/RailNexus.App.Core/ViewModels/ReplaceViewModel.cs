@@ -32,7 +32,7 @@ public sealed class CandidateItem(LibraryEntry entry, CandidateCheck check)
 /// Ganti komponen untuk satu peran (bentuk minimal UI-04/05/07/08): pilih slot → cari kandidat
 /// lokal → tambahkan ke draft. Kandidat yang tidak sesuai tetap tampil dengan alasannya (PRD 9.3).
 /// </summary>
-public sealed class ReplaceViewModel : ObservableObject, IPage
+public sealed class ReplaceViewModel : ObservableObject, IPage, IDisposable
 {
     private readonly AppSession _session;
     private readonly AssetWorkspace _workspace;
@@ -42,8 +42,15 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
     private string _searchText = "";
     private string? _error;
 
-    public ReplaceViewModel(AppSession session, AssetWorkspace workspace, IRole role, FooterAction footer, Action back)
+    private readonly IAudioPlayer _player;
+    private string? _previewStatus;
+
+    public ReplaceViewModel(AppSession session, AssetWorkspace workspace, IRole role, FooterAction footer, Action back, IAudioPlayer? player = null)
     {
+        _player = player ?? new NullAudioPlayer();
+        PreviewCurrentCommand = new AsyncCommand(() => PreviewAsync(SelectedSlot?.Slot.Current, "sekarang"), () => CanPreview && SelectedSlot is not null);
+        PreviewCandidateCommand = new AsyncCommand(() => PreviewAsync(SelectedCandidate?.Entry.Kuid, "pengganti"), () => CanPreview && SelectedCandidate is not null);
+        StopPreviewCommand = new RelayCommand(() => { _player.Stop(); PreviewStatus = "Dihentikan."; });
         _session = session;
         _workspace = workspace;
         _back = back;
@@ -57,6 +64,41 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
     }
 
     public IRole Role { get; }
+
+    /// <summary>Preview A/B untuk peran suara (PRD 10.2/10.3); peran lain tidak menampilkan pemutar.</summary>
+    public bool CanPreview => Role.Id is "hornsound" or "enginesound";
+    public AsyncCommand PreviewCurrentCommand { get; }
+    public AsyncCommand PreviewCandidateCommand { get; }
+    public RelayCommand StopPreviewCommand { get; }
+    public string? PreviewStatus { get => _previewStatus; private set => Set(ref _previewStatus, value); }
+
+    public void Dispose() => _player.Stop();
+
+    /// <summary>
+    /// Membaca berkas suara aset target lalu memutar sampel pertama. Bila tidak dapat dibaca, keterbatasan
+    /// itu ditampilkan; penggantian tetap dapat dilakukan tanpa preview (PRD 10.2).
+    /// </summary>
+    private async Task PreviewAsync(Kuid? kuid, string label)
+    {
+        _player.Stop();
+        if (kuid is not { } k) return;
+        if (_session.Find(k) is not { } entry) { PreviewStatus = "Aset ini belum ada di indeks; suaranya tidak dapat dibaca."; return; }
+        var ws = _session.Workspace(entry);
+        if (ws.Snapshot is null)
+        {
+            var r = await _session.AssetReader.ReadSnapshotAsync(entry.Kuid);
+            if (!r.IsSuccess) { PreviewStatus = $"Suara {entry.Name} belum dapat dibaca untuk preview: {r.Message} Penggantian tetap dapat dilakukan."; return; }
+            ws.SetSnapshot(r.Value!);
+        }
+        var wav = ws.Snapshot!.Files.FirstOrDefault(f => f.RelativePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) && ws.Snapshot.IsRetained(f.RelativePath));
+        if (wav is null) { PreviewStatus = $"{entry.Name} tidak memiliki berkas WAV yang dapat diputar."; return; }
+        var bytes = ws.Snapshot.Read(wav.RelativePath)!;
+        var info = RailNexus.Core.Audio.WavInfo.Read(bytes);
+        if (!info.Ok) { PreviewStatus = $"{wav.RelativePath}: {info.Error}"; return; }
+        var error = _player.Play($"{entry.Name} ({label})", bytes, 0.8);
+        PreviewStatus = error ?? $"Memutar sampel {wav.RelativePath} dari {entry.Name} ({label}). " +
+            (Role.Id == "enginesound" ? "Satu sampel, bukan simulasi seluruh rentang RPM." : "Bukan simulasi suara di Trainz.");
+    }
     public string Title => Role.Label;
     public string CommunityTerm => Role.CommunityTerm;
     public FooterAction Footer { get; }
@@ -99,6 +141,7 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
             if (!Set(ref _candidate, value)) return;
             OnPropertyChanged(nameof(AddDisabledReason));
             AddCommand.Refresh();
+            PreviewCandidateCommand.Refresh();
         }
     }
 

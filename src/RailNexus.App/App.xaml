@@ -47,6 +47,9 @@
             <DataTemplate DataType="{x:Type vm:RepairListViewModel}">
                 <views:RepairListView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SoundViewModel}">
+                <views:SoundView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DraftPanelViewModel}">
                 <views:DraftPanelView />
             </DataTemplate>

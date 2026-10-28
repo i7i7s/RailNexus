@@ -28,7 +28,8 @@ public sealed record HubActions(
     Action? OpenEditor = null,
     Action? OpenTexture = null,
     Action? OpenDependency = null,
-    Action? OpenRepair = null);
+    Action? OpenRepair = null,
+    Action? OpenSound = null);
 
 /// <summary>UI-03 Pusat edit aset: "Mau edit apa?" berdasarkan isi config aset (PRD 6.1, RN-025).</summary>
 public sealed class EditHubViewModel : ObservableObject, IPage
@@ -96,7 +97,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         var doc = _workspace.Document;
         var roleCards = RoleCatalog.P0.ToDictionary(r => r.Id, r => RoleCard(r, doc), StringComparer.OrdinalIgnoreCase);
 
-        Groups.Add(new TaskGroup("Suara", [roleCards["hornsound"], roleCards["enginesound"], roleCards["tracksound"]]));
+        Groups.Add(new TaskGroup("Suara", [roleCards["hornsound"], roleCards["enginesound"], roleCards["tracksound"], SoundCard()]));
         Groups.Add(new TaskGroup("Komponen & dependency",
         [
             roleCards["bogie"],
@@ -122,6 +123,18 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         new(title, caption, new("Terpandu", Tone.Info),
             doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
             open is null ? null : new RelayCommand(open));
+
+    private TaskCard SoundCard()
+    {
+        const string title = "Berkas suara lokal";
+        if (_workspace.Snapshot is not { } snap)
+            return new TaskCard(title, "WAV di dalam aset", NotApplicable, $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim());
+        var n = SoundViewModel.CountAudio(snap);
+        return n == 0
+            ? new TaskCard(title, "WAV di dalam aset", NotApplicable, "Aset ini tidak memiliki berkas suara lokal.")
+            : new TaskCard(title, $"{n} berkas · dengarkan dan ganti", new("Terpandu", Tone.Info), null,
+                _actions.OpenSound is null ? null : new RelayCommand(_actions.OpenSound));
+    }
 
     private TaskCard TextureCard()
     {

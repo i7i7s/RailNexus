@@ -29,6 +29,26 @@ internal sealed class FakeIndexer(LibraryIndex library, Dictionary<Kuid, string>
     }
 }
 
+internal sealed class FakeAudioPlayer : IAudioPlayer
+{
+    public List<string> Played { get; } = new();
+    public int Stops { get; private set; }
+    public string? NowPlaying { get; private set; }
+
+    public string? Play(string label, byte[] wav, double volume)
+    {
+        Played.Add(label);
+        NowPlaying = label;
+        return null;
+    }
+
+    public void Stop()
+    {
+        Stops++;
+        NowPlaying = null;
+    }
+}
+
 internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string storeRoot, ConnectionCheck check) : IConnectionService
 {
     public Dictionary<Kuid, string> Kinds { get; } = new();
@@ -110,12 +130,13 @@ public sealed class AppViewModelTests : IDisposable
     }
 
     private readonly Dictionary<Kuid, string> _kinds = new();
+    private readonly FakeAudioPlayer _audio = new();
 
     private async Task<MainViewModel> ConnectedShell(ConnectionCheck? check = null)
     {
         var connections = new FakeConnections(_sim, DbPath, Path.Combine(_root, "tx"), check ?? Connected);
         foreach (var (k, v) in _kinds) connections.Kinds[k] = v;
-        var main = new MainViewModel(connections);
+        var main = new MainViewModel(connections, audio: _audio);
         var connect = Assert.IsType<ConnectViewModel>(main.CurrentPage);
         await connect.CheckCommand.ExecuteAsync();
         connect.ConnectCommand.Execute(null);
@@ -947,5 +968,78 @@ public sealed class AppViewModelTests : IDisposable
         var c = replace.Candidates.Single();
         Assert.False(c.IsSelectable);
         Assert.StartsWith("Jenis berbeda: 'scenery'", c.Reason);
+    }
+
+    // ------------------------------------------------------------- suara (RN-013/022)
+
+    [Fact]
+    public async Task Sound_workshop_previews_and_replaces_wav_without_new_kuid_AC29()
+    {
+        var config = "kuid <kuid:999001:1300>\r\nsoundscript\r\n{\r\n  horn\r\n  {\r\n    sound\r\n    {\r\n      0 \"horn.wav\"\r\n    }\r\n  }\r\n}\r\n";
+        var oldWav = WavFixtures.Wav(loop: (0, 100));
+        _sim.Install(Wagon, new() { ["config.txt"] = Encoding.UTF8.GetBytes(config), ["horn.wav"] = oldWav });
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Wagon));
+        var card = ((EditHubViewModel)main.CurrentPage).Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Berkas suara lokal");
+        Assert.Equal("1 berkas · dengarkan dan ganti", card.Caption);
+        card.Open!.Execute(null);
+        var sound = Assert.IsType<SoundViewModel>(main.CurrentPage);
+
+        var file = Assert.Single(sound.Files);
+        Assert.Contains("PCM · mono · 22050 Hz", file.Description);
+        Assert.Equal("Disebut di: soundscript/horn/sound/0", file.UsedIn);
+        file.PlayCommand.Execute(null);
+        Assert.Equal("horn.wav (sekarang)", _audio.NowPlaying);
+
+        Assert.Equal("Pilih berkas WAV pengganti.", file.ReplacementProblem);
+        var bad = Path.Combine(_root, "bukan.wav");
+        File.WriteAllText(bad, "teks");
+        file.ChooseReplacement(bad);
+        Assert.StartsWith("Pengganti tidak dapat dipakai", file.ReplacementProblem);
+
+        var good = Path.Combine(_root, "klakson-baru.wav");
+        var newWav = WavFixtures.Wav(channels: 2, rate: 44100);
+        File.WriteAllBytes(good, newWav);
+        file.ChooseReplacement(good);
+        Assert.Null(file.ReplacementProblem);
+        Assert.Contains("Laju sampel berbeda", file.Differences);
+        file.PlayNewCommand.Execute(null);
+        Assert.Equal("klakson-baru.wav (pengganti)", _audio.NowPlaying);
+        file.AddToDraftCommand.Execute(null);
+        Assert.Equal("1 perubahan siap", main.Draft!.CountLabel);
+
+        // Berpindah halaman menghentikan playback (AUDIO-AC).
+        var stops = _audio.Stops;
+        main.CurrentPage.Back();
+        await main.Loading;
+        Assert.True(_audio.Stops > stops);
+        Assert.Null(_audio.NowPlaying);
+
+        await main.Draft.ApplyCommand.ExecuteAsync();
+        Assert.Equal("Berhasil", main.Draft.Outcome!.Status.Text);
+        Assert.Equal(newWav, _sim.InstalledFile(Wagon, "horn.wav"));
+        Assert.Equal(config, Encoding.UTF8.GetString(_sim.InstalledFile(Wagon, "config.txt")!)); // tidak ada KUID baru
+    }
+
+    [Fact]
+    public async Task Horn_preview_plays_readable_assets_and_explains_others()
+    {
+        _sim.Install(Horn2, new() { ["config.txt"] = Encoding.UTF8.GetBytes("kuid <kuid:999002:3101>\r\n"), ["horn.wav"] = WavFixtures.Wav() });
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var replace = await OpenRole(main, "Ganti klakson");
+        Assert.True(replace.CanPreview);
+
+        await replace.PreviewCurrentCommand.ExecuteAsync();
+        Assert.Equal("Klakson Dua Nada KL-2 (sekarang)", _audio.NowPlaying);
+        Assert.Contains("Bukan simulasi", replace.PreviewStatus);
+        Assert.False(_sim.IsOpen(Horn2));
+
+        replace.SearchText = "KL-3";
+        replace.SelectedCandidate = replace.Candidates.Single();
+        await replace.PreviewCandidateCommand.ExecuteAsync();
+        Assert.Contains("belum dapat dibaca untuk preview", replace.PreviewStatus);
+        Assert.Contains("Penggantian tetap dapat dilakukan", replace.PreviewStatus);
+        Assert.True(replace.AddCommand.CanExecute(null));
     }
 }

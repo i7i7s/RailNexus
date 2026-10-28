@@ -14,6 +14,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private readonly IConnectionService _connections;
     private readonly SettingsStore? _settings;
+    private readonly IAudioPlayer _audio;
     private AppSession? _session;
     private IPage _page;
     private LibraryViewModel? _library;
@@ -21,10 +22,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private AssetWorkspace? _lastAsset;
     private DraftPanelViewModel? _draft;
 
-    public MainViewModel(IConnectionService connections, SettingsStore? settings = null)
+    public MainViewModel(IConnectionService connections, SettingsStore? settings = null, IAudioPlayer? audio = null)
     {
         _connections = connections;
         _settings = settings;
+        _audio = audio ?? new NullAudioPlayer();
         Nav =
         [
             new NavItem("pustaka", "Pustaka", "Sambungkan ke Trainz terlebih dahulu."),
@@ -78,7 +80,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
     public bool ShowDraftPanel => ActiveAsset is not null &&
-        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel
+        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel or SoundViewModel
             or TextureViewModel { IsAssetMode: true };
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
@@ -202,10 +204,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (_session is null || Draft is null || ActiveAsset is null) return;
         var ws = ActiveAsset;
-        CurrentPage = new ReplaceViewModel(_session, ws, role, Draft.Footer, () =>
-        {
-            BackToHub(ws);
-        });
+        CurrentPage = new ReplaceViewModel(_session, ws, role, Draft.Footer, () => BackToHub(ws), _audio);
     }
 
     private string StagingRoot => Path.Combine(_connections.DataRoot, "staging");
@@ -217,7 +216,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             OpenEditor: () => OpenEditor(ws),
             OpenTexture: () => OpenTexture(ws),
             OpenDependency: () => CurrentPage = new DependencyViewModel(_session!, ws, Draft!.Footer, AssetNav(ws)),
-            OpenRepair: () => OpenRepair(ws)));
+            OpenRepair: () => OpenRepair(ws),
+            OpenSound: () => CurrentPage = new SoundViewModel(ws, _audio, Draft!.Footer, () => BackToHub(ws))));
 
     private AssetNavigation AssetNav(AssetWorkspace ws) =>
         new(OpenRole, entry => Loading = OpenAssetAsync(entry), () => OpenTexture(ws), () => OpenEditor(ws), () => BackToHub(ws));
