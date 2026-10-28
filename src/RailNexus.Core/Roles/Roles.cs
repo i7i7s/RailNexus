@@ -126,5 +126,21 @@ public static class RoleCatalog
         new BogieRole(SupportLevel.Guided, UntilIntegration),
     ];
 
-    public static IRole? ById(string id) => P0.FirstOrDefault(r => r.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+    private const string P1Note = "Peran P1 (PRD 10.1). KIND target mengikuti dokumentasi KIND Traincar dan belum diuji pada build ini; " +
+                                  "kandidat dengan KIND belum terbaca tidak ditawarkan. Kecocokan perilaku tetap perlu uji di Trainz.";
+
+    /// <summary>
+    /// Peran P1 terpandu (PRD 10.1): field KUID tunggal pada kendaraan. Kontrak kabin, attachment,
+    /// dan parameter fisika tidak diperiksa otomatis; karena itu KIND target diwajibkan.
+    /// </summary>
+    public static IReadOnlyList<IRole> P1 { get; } =
+    [
+        new TopLevelFieldRole("interior", "Interior/kabin", "interior", ["interior"], SupportLevel.Guided, P1Note),
+        new TopLevelFieldRole("pantograph", "Pantograf", "pantograph", ["pantograph"], SupportLevel.Guided, P1Note),
+        new TopLevelFieldRole("enginespec", "Spesifikasi mesin", "enginespec", ["enginespec"], SupportLevel.Guided, P1Note),
+    ];
+
+    public static IReadOnlyList<IRole> All { get; } = [.. P0, .. P1];
+
+    public static IRole? ById(string id) => All.FirstOrDefault(r => r.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
 }

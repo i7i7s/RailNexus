@@ -22,12 +22,12 @@ public static class DependencyInventory
     public const string OtherRole = "lain";
 
     /// <summary>
-    /// Mengumpulkan referensi langsung. Lokasi yang dikenali peran P0 diberi label perannya; sisanya
+    /// Mengumpulkan referensi langsung. Lokasi yang dikenali peran P0/P1 diberi label perannya; sisanya
     /// ditampilkan sebagai referensi lain tanpa menebak semantik dari nama tag (PRD 9.3).
     /// </summary>
     public static IReadOnlyList<DependencyRef> Collect(ConfigDocument doc, Kuid self)
     {
-        var slots = RoleCatalog.P0.SelectMany(r => r.Locate(doc).Select(s => (Role: r, Slot: s)))
+        var slots = RoleCatalog.All.SelectMany(r => r.Locate(doc).Select(s => (Role: r, Slot: s)))
             .GroupBy(x => x.Slot.Path, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var list = new List<DependencyRef>();

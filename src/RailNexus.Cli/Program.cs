@@ -410,7 +410,7 @@ async Task<int> ParseCheck()
     var runner = new ProcessRunner();
     int parsed = 0, withErrors = 0, unreadable = 0;
     var codes = new Dictionary<string, int>();
-    var roleHits = RoleCatalog.P0.ToDictionary(r => r.Id, _ => 0);
+    var roleHits = RoleCatalog.All.ToDictionary(r => r.Id, _ => 0);
     var examples = new List<string>();
     var unreadableReasons = new Dictionary<string, int>();
     foreach (var k in kuids)
@@ -430,7 +430,7 @@ async Task<int> ParseCheck()
         parsed++;
         if (doc.HasErrors) withErrors++;
         foreach (var d in doc.Diagnostics) codes[d.Code] = codes.GetValueOrDefault(d.Code) + 1;
-        foreach (var role in RoleCatalog.P0)
+        foreach (var role in RoleCatalog.All)
             if (role.Locate(doc).Any()) roleHits[role.Id]++;
         // Contoh diagnosis dengan potongan baris (dipendekkan) agar penyebab dapat dianalisis; hanya ditampilkan.
         var textLines = text.Split('\n');

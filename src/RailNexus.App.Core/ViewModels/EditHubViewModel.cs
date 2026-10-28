@@ -95,12 +95,15 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     {
         Groups.Clear();
         var doc = _workspace.Document;
-        var roleCards = RoleCatalog.P0.ToDictionary(r => r.Id, r => RoleCard(r, doc), StringComparer.OrdinalIgnoreCase);
+        var roleCards = RoleCatalog.All.ToDictionary(r => r.Id, r => RoleCard(r, doc), StringComparer.OrdinalIgnoreCase);
 
         Groups.Add(new TaskGroup("Suara", [roleCards["hornsound"], roleCards["enginesound"], roleCards["tracksound"], SoundCard()]));
         Groups.Add(new TaskGroup("Komponen & dependency",
         [
             roleCards["bogie"],
+            roleCards["interior"],
+            roleCards["pantograph"],
+            roleCards["enginespec"],
             DocCard("Semua komponen & dependency", doc is null ? "Inventaris referensi per peran"
                 : $"{RailNexus.Core.Dependencies.DependencyInventory.Collect(doc, _workspace.Entry.Kuid).Count} referensi · status dan turunan",
                 doc, _actions.OpenDependency),
@@ -167,6 +170,9 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         "enginesound" => "Ganti suara mesin",
         "tracksound" => "Suara roda-rel",
         "bogie" => "Ganti bogie",
+        "interior" => "Ganti interior",
+        "pantograph" => "Ganti pantograf",
+        "enginespec" => "Ganti spesifikasi mesin",
         _ => role.Label,
     };
 
