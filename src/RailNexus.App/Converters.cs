@@ -94,3 +94,28 @@ public sealed class HasValueConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not null;
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Byte gambar (JPG/PNG) → BitmapImage untuk thumbnail; null bila tidak dapat didekode.</summary>
+public sealed class BytesToImageConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not byte[] { Length: > 0 } bytes) return null;
+        try
+        {
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.CacheOption = BitmapCacheOption.OnLoad;
+            img.StreamSource = new System.IO.MemoryStream(bytes);
+            img.EndInit();
+            img.Freeze();
+            return img;
+        }
+        catch (Exception ex) when (ex is NotSupportedException or System.IO.IOException or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}

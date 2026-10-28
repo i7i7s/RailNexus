@@ -185,10 +185,34 @@ public sealed class AssetWorkspace(LibraryEntry entry)
 
     public event EventHandler? Changed;
 
+    /// <summary>Isi gambar thumbnail aset bila ada dan tersimpan di snapshot; didekode oleh UI (JPG/PNG).</summary>
+    public byte[]? Thumbnail { get; private set; }
+
     public void SetSnapshot(AssetSnapshot snapshot)
     {
         Snapshot = snapshot;
         SetConfig(snapshot.Read("config.txt")!);
+        Thumbnail = FindThumbnail(snapshot, Document);
+    }
+
+    /// <summary>Thumbnail dari container thumbnails/image di config, atau berkas thumbnail.jpg/png.</summary>
+    internal static byte[]? FindThumbnail(AssetSnapshot snapshot, ConfigDocument? doc)
+    {
+        var names = new List<string>();
+        if (doc is not null)
+        {
+            names.AddRange(doc.Root.Named("thumbnails").Where(t => t.Container is not null)
+                .SelectMany(t => t.Container!.Children).Where(c => c.Container is not null)
+                .SelectMany(c => c.Container!.Named("image")).Select(i => i.Value?.Text).OfType<string>());
+            if (doc.TopLevelString("thumbnail") is { } single) names.Add(single);
+        }
+        names.AddRange(["thumbnail.jpg", "thumbnail.png"]);
+        foreach (var n in names)
+        {
+            if (!snapshot.Exists(n) || !snapshot.IsRetained(n)) continue;
+            return snapshot.Read(n);
+        }
+        return null;
     }
 
     private void SetConfig(byte[] bytes)

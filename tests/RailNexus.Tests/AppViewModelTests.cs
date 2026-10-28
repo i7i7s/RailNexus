@@ -782,6 +782,7 @@ public sealed class AppViewModelTests : IDisposable
         var card = ((EditHubViewModel)main.CurrentPage).Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Tekstur & material");
         Assert.Equal("2 gambar · 1 tanpa metadata", card.Caption);
 
+        Assert.Equal(thumb, main.ActiveAsset!.Thumbnail); // thumbnail dari config untuk bar konteks
         var tex = OpenTexture(main);
         var missingMeta = Assert.Single(tex.Inventory, i => i.Finding.Kind == InventoryKind.ImageWithoutMetadata);
         Assert.Equal("body.tga", missingMeta.Path); // thumbnail dari config tidak dihitung

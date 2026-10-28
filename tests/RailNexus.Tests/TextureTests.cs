@@ -339,6 +339,19 @@ public sealed class TextureWorkshopTests : IDisposable
     }
 
     [Fact]
+    public void Unknown_texture_format_is_not_faked_and_source_is_untouched_AC19()
+    {
+        // Isi tidak dikenal (mis. .texture terkompilasi): tidak ditebak dari ekstensi atau tanda tangan.
+        var bytes = new byte[] { 0x13, 0x37, 0x00, 0x42, 1, 0, 0, 0, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9 }; // isi sembarang
+        var src = Source("badan.texture", bytes);
+        var r = _ws.Prepare([new TextureSource(src, TextureRole.Color)], DictionaryFileView.Empty);
+        Assert.Equal(TextureItemStatus.Failed, r.Items[0].Status);
+        Assert.Contains("tidak dikenali", r.Items[0].Error);
+        Assert.Empty(r.Files);
+        Assert.Equal(bytes, File.ReadAllBytes(src));
+    }
+
+    [Fact]
     public void Two_sources_with_same_output_name_block_until_resolved_AC18()
     {
         var a = Source("badan.png", PatternPngRgba(), "a");

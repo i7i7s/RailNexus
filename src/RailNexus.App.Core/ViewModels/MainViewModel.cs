@@ -71,12 +71,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _active;
         private set
         {
+            var previous = _active;
             if (!Set(ref _active, value)) return;
+            if (previous is not null) previous.Changed -= OnActiveChanged;
+            if (value is not null) value.Changed += OnActiveChanged;
+            OnPropertyChanged(nameof(ActiveThumbnail));
             OnPropertyChanged(nameof(ActiveStatus));
             OnPropertyChanged(nameof(ShowDraftPanel));
             if (Draft is not null) Draft.Workspace = value;
         }
     }
+
+    /// <summary>Thumbnail aset aktif (byte JPG/PNG); diperbarui setelah isi aset terbaca.</summary>
+    public byte[]? ActiveThumbnail => ActiveAsset?.Thumbnail;
+
+    private void OnActiveChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(ActiveThumbnail));
 
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
     public bool ShowDraftPanel => ActiveAsset is not null &&
