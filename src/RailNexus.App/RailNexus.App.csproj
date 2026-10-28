@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\RailNexus.App.Core\RailNexus.App.Core.csproj" />
+    <ProjectReference Include="..\RailNexus.Core\RailNexus.Core.csproj" />
+    <ProjectReference Include="..\RailNexus.Trainz\RailNexus.Trainz.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Agar dapat di-build (bukan dijalankan) di Linux/CI; aplikasi hanya berjalan di Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>RailNexus</AssemblyName>
+    <RootNamespace>RailNexus.App</RootNamespace>
+  </PropertyGroup>
+
+</Project>

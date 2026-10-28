@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\RailNexus.Core\RailNexus.Core.csproj" />
+    <ProjectReference Include="..\RailNexus.Trainz\RailNexus.Trainz.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RailNexus.App.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

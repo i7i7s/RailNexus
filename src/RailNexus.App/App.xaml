@@ -1,0 +1,31 @@
+<Application x:Class="RailNexus.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RailNexus.App.Core.ViewModels;assembly=RailNexus.App.Core"
+             xmlns:views="clr-namespace:RailNexus.App.Views"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Theme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Setiap ViewModel halaman memiliki satu view. -->
+            <DataTemplate DataType="{x:Type vm:ConnectViewModel}">
+                <views:ConnectView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:LibraryViewModel}">
+                <views:LibraryView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:EditHubViewModel}">
+                <views:EditHubView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ReplaceViewModel}">
+                <views:ReplaceView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:DraftPanelViewModel}">
+                <views:DraftPanelView />
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/RailNexus.App.Core/RailNexus.App.Core.csproj" />
+    <Project Path="src/RailNexus.App/RailNexus.App.csproj" />
     <Project Path="src/RailNexus.Cli/RailNexus.Cli.csproj" />
     <Project Path="src/RailNexus.Core/RailNexus.Core.csproj" />
     <Project Path="src/RailNexus.Trainz/RailNexus.Trainz.csproj" />

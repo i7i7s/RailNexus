@@ -136,13 +136,17 @@ public sealed class LibraryIndex : IDisposable
         return (long)c.ExecuteScalar()!;
     }
 
-    /// <summary>
-    /// Pencarian dengan nama atau KUID. Teks yang berupa KUID mencari identitas aset
-    /// (semua revisi); teks lain mencari bagian nama tanpa membedakan huruf besar/kecil.
-    /// </summary>
-    public IReadOnlyList<LibraryEntry> Search(LibraryQuery q)
+    /// <summary>Jumlah aset yang cocok dengan teks dan filter (untuk label filter), tanpa memuat barisnya.</summary>
+    public long Count(LibraryQuery q)
     {
         using var c = _db.CreateCommand();
+        var (from, where, _) = BuildQuery(c, q);
+        c.CommandText = $"SELECT COUNT(*) FROM {from} WHERE {where}";
+        return (long)c.ExecuteScalar()!;
+    }
+
+    private (string From, string Where, string Order) BuildQuery(SqliteCommand c, LibraryQuery q)
+    {
         var where = new List<string> { "profile = $p" };
         c.Parameters.AddWithValue("$p", ProfileId);
 
@@ -179,9 +183,21 @@ public sealed class LibraryIndex : IDisposable
             c.Parameters.AddWithValue("$catp", q.Category + ";%");
         }
 
+        return (from, string.Join(" AND ", where), order);
+    }
+
+    /// <summary>
+    /// Pencarian dengan nama atau KUID. Teks yang berupa KUID mencari identitas aset
+    /// (semua revisi); teks lain mencari bagian nama tanpa membedakan huruf besar/kecil.
+    /// </summary>
+    public IReadOnlyList<LibraryEntry> Search(LibraryQuery q)
+    {
+        using var c = _db.CreateCommand();
+        var (from, where, order) = BuildQuery(c, q);
+
         c.CommandText = $"""
             SELECT kuid, name, category, flags, state, missing_deps, modified, packaged, payware, checked_at
-            FROM {from} WHERE {string.Join(" AND ", where)}
+            FROM {from} WHERE {where}
             ORDER BY {order} LIMIT $lim OFFSET $off
             """;
         c.Parameters.AddWithValue("$lim", q.Limit);

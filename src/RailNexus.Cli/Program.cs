@@ -492,16 +492,8 @@ void RequireTrainzUtil()
         throw new IOException("TrainzUtil.exe tidak ditemukan. Tentukan folder instalasi dengan --trainz \"<folder>\".");
 }
 
-static string? FindTrainz()
-{
-    string[] candidates =
-    [
-        @"C:\Program Files (x86)\Steam\steamapps\common\Trainz Railroad Simulator 2019",
-        @"C:\Program Files\N3V Games\Trainz Railroad Simulator 2019",
-        @"C:\Program Files (x86)\N3V Games\Trainz Railroad Simulator 2019",
-    ];
-    return candidates.FirstOrDefault(c => File.Exists(Path.Combine(c, "TrainzUtil.exe")));
-}
+static string? FindTrainz() =>
+    TrainzInstallations.KnownFolders.Select(k => k.Folder).FirstOrDefault(TrainzInstallations.HasTool);
 
 static string? FindRepoRoot()
 {
