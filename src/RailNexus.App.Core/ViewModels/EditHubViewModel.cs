@@ -29,7 +29,8 @@ public sealed record HubActions(
     Action? OpenTexture = null,
     Action? OpenDependency = null,
     Action? OpenRepair = null,
-    Action? OpenSound = null);
+    Action? OpenSound = null,
+    Action? OpenCargo = null);
 
 /// <summary>UI-03 Pusat edit aset: "Mau edit apa?" berdasarkan isi config aset (PRD 6.1, RN-025).</summary>
 public sealed class EditHubViewModel : ObservableObject, IPage
@@ -104,6 +105,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
             roleCards["interior"],
             roleCards["pantograph"],
             roleCards["enginespec"],
+            CargoCard(doc),
             DocCard("Semua komponen & dependency", doc is null ? "Inventaris referensi per peran"
                 : $"{RailNexus.Core.Dependencies.DependencyInventory.Collect(doc, _workspace.Entry.Kuid).Count} referensi · status dan turunan",
                 doc, _actions.OpenDependency),
@@ -126,6 +128,17 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         new(title, caption, new("Terpandu", Tone.Info),
             doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
             open is null ? null : new RelayCommand(open));
+
+    private TaskCard CargoCard(ConfigDocument? doc)
+    {
+        const string title = "Produk & muatan";
+        if (doc is null) return new TaskCard(title, "queues", NotApplicable, $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim());
+        var queues = RailNexus.Core.Cargo.QueueInspector.Inspect(doc);
+        if (queues.Count == 0) return new TaskCard(title, "queues", NotApplicable, "Tidak tersedia: aset ini tidak punya antrean muatan.");
+        var conflicts = queues.Sum(q => q.Conflicts.Count);
+        return new TaskCard(title, conflicts > 0 ? $"{queues.Count} antrean · {conflicts} konflik" : $"{queues.Count} antrean",
+            new("Inspeksi/manual", Tone.Mute), null, _actions.OpenCargo is null ? null : new RelayCommand(_actions.OpenCargo));
+    }
 
     private TaskCard SoundCard()
     {

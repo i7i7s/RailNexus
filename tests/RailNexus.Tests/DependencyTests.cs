@@ -164,3 +164,54 @@ public sealed class P1RoleTests
         Assert.Equal("Pantograf · Pantograf", refs.Single(r => r.Location == "pantograph").RoleLabel);
     }
 }
+
+public sealed class QueueTests
+{
+    private const string Wagon = """
+        // Config sintetis RailNexus untuk uji muatan; nama tag mengikuti dokumentasi, belum diuji pada corpus nyata.
+        kuid                                    <kuid:999001:3001>
+        queues
+        {
+          muatan
+          {
+            size                                40
+            initial-count                       50
+            initial-kuid                        <kuid:999020:2>
+            product-kinds
+            {
+              0                                 <kuid:999020:1>
+            }
+          }
+          kedua
+          {
+            size                                10
+            initial-count                       5
+            initial-kuid                        <kuid:999020:1>
+            product-kinds
+            {
+              0                                 <kuid:999020:1>
+            }
+            allowed-categories                  "x"
+          }
+        }
+
+        """;
+
+    [Fact]
+    public void Initial_product_outside_allowed_list_is_a_conflict_AC30()
+    {
+        var queues = RailNexus.Core.Cargo.QueueInspector.Inspect(ConfigDocument.Parse(Wagon));
+        var q = queues.Single(x => x.Name == "muatan");
+        Assert.Equal(40, q.Size);
+        Assert.Contains(q.Conflicts, c => c.Contains("melebihi kapasitas"));
+        Assert.Contains(q.Conflicts, c => c.Contains("tidak ada di daftar produk"));
+        var second = queues.Single(x => x.Name == "kedua");
+        Assert.Empty(second.Conflicts);
+        Assert.Contains(second.Uncertain, u => u.Contains("allowed-categories"));
+
+        var doc = ConfigDocument.Parse(Wagon);
+        var problems = Diagnosis.Diagnose(Kuid.Parse("<kuid:999001:3001>"), false, doc, DependencyInventory.Collect(doc, Kuid.Parse("<kuid:999001:3001>")),
+            _ => TargetState.Installed, null, []);
+        Assert.Contains(problems, p => p.Title == "Konflik muatan pada antrean 'muatan'");
+    }
+}

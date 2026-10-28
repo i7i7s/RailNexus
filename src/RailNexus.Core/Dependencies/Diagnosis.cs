@@ -135,6 +135,13 @@ public static class Diagnosis
             }
         }
 
+        // AC-30: konflik muatan ditunjukkan sebelum penerapan.
+        if (doc is { HasErrors: false })
+            foreach (var q in Cargo.QueueInspector.Inspect(doc).Where(q => q.Conflicts.Count > 0))
+                problems.Add(new Problem(ProblemClass.Inconsistent, $"Konflik muatan pada antrean '{q.Name}'",
+                    string.Join(" ", q.Conflicts), $"Lokasi: {q.Path}.", "Muatan dapat tampil atau berperilaku tidak sesuai di Trainz.",
+                    [new RepairAction(RepairActionKind.OpenEditor, "Buka editor lanjutan")], Location: q.Path));
+
         foreach (var f in files.Where(f => f.Kind is InventoryKind.MissingTarget or InventoryKind.UnreadableMetadata))
             problems.Add(new Problem(ProblemClass.Inconsistent, $"Metadata tekstur bermasalah: {f.Path}", f.Message,
                 "Berkas lokal aset (bukan dependency ber-KUID).", "Tekstur dapat gagal dibangun Trainz.",

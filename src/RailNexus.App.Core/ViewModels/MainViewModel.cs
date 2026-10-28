@@ -80,7 +80,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
     public bool ShowDraftPanel => ActiveAsset is not null &&
-        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel or SoundViewModel
+        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel or SoundViewModel or CargoViewModel
             or TextureViewModel { IsAssetMode: true };
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
@@ -217,7 +217,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             OpenTexture: () => OpenTexture(ws),
             OpenDependency: () => CurrentPage = new DependencyViewModel(_session!, ws, Draft!.Footer, AssetNav(ws)),
             OpenRepair: () => OpenRepair(ws),
-            OpenSound: () => CurrentPage = new SoundViewModel(ws, _audio, Draft!.Footer, () => BackToHub(ws))));
+            OpenSound: () => CurrentPage = new SoundViewModel(ws, _audio, Draft!.Footer, () => BackToHub(ws)),
+            OpenCargo: () => CurrentPage = new CargoViewModel(_session!, ws, Draft!.Footer, () => BackToHub(ws))));
 
     private AssetNavigation AssetNav(AssetWorkspace ws) =>
         new(OpenRole, entry => Loading = OpenAssetAsync(entry), () => OpenTexture(ws), () => OpenEditor(ws), () => BackToHub(ws));
