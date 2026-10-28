@@ -120,10 +120,26 @@ public sealed class AppSession(
     TxStore store,
     TransactionRunner? runner,
     string? writeDisabledReason,
-    string? installationFolder = null) : IDisposable
+    string? installationFolder = null,
+    ITrainzAdapter? adapter = null) : IDisposable
 {
     public string ProfileLabel => profileLabel;
     public string? InstallationFolder => installationFolder;
+    /// <summary>Untuk operasi baca seperti validasi; penulisan selalu lewat <see cref="Runner"/>.</summary>
+    public ITrainzAdapter? Adapter => adapter;
+
+    /// <summary>Keadaan target menurut indeks profil ini (revisi apa pun).</summary>
+    public RailNexus.Core.Dependencies.TargetState TargetState(Kuid kuid) =>
+        library.Search(new LibraryQuery(kuid.ToString(), Limit: 1)).FirstOrDefault()?.State switch
+        {
+            AssetState.Installed => RailNexus.Core.Dependencies.TargetState.Installed,
+            AssetState.Faulty => RailNexus.Core.Dependencies.TargetState.Faulty,
+            AssetState.OpenForEdit => RailNexus.Core.Dependencies.TargetState.OpenForEdit,
+            AssetState.Missing => RailNexus.Core.Dependencies.TargetState.Missing,
+            _ => RailNexus.Core.Dependencies.TargetState.NotIndexed,
+        };
+
+    public LibraryEntry? Find(Kuid kuid) => library.Search(new LibraryQuery(kuid.ToString(), Limit: 1)).FirstOrDefault();
     public LibraryIndex Library => library;
     public IAssetReader AssetReader => assetReader;
     /// <summary>Jurnal dan backup transaksi profil ini, untuk Riwayat.</summary>
@@ -144,6 +160,14 @@ public sealed class AppSession(
 
     public void Dispose() => library.Dispose();
 }
+
+/// <summary>Tindakan navigasi yang dapat dipicu halaman aset (dari Dependency/Perbaikan ke modul lain).</summary>
+public sealed record AssetNavigation(
+    Action<RailNexus.Core.Roles.IRole> OpenRole,
+    Action<LibraryEntry> OpenAsset,
+    Action OpenTexture,
+    Action OpenEditor,
+    Action Back);
 
 /// <summary>Aset aktif: catatan pustaka, config yang terakhir dibaca, dan draft bersama.</summary>
 public sealed class AssetWorkspace(LibraryEntry entry)

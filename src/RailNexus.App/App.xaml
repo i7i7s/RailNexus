@@ -38,6 +38,15 @@
             <DataTemplate DataType="{x:Type vm:TextureViewModel}">
                 <views:TextureView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:DependencyViewModel}">
+                <views:DependencyView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:RepairViewModel}">
+                <views:RepairView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:RepairListViewModel}">
+                <views:RepairListView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DraftPanelViewModel}">
                 <views:DraftPanelView />
             </DataTemplate>

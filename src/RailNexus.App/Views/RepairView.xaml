@@ -1,0 +1,71 @@
+<UserControl x:Class="RailNexus.App.Views.RepairView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- UI-13 Periksa & perbaiki -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24,20">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Periksa ulang" Command="{Binding CheckCommand}" VerticalAlignment="Top" />
+                <StackPanel>
+                    <TextBlock Text="Periksa &amp; perbaiki" Style="{StaticResource Text.H1}" />
+                    <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding ValidationNote}" Style="{StaticResource Text.Caption}"
+                               Visibility="{Binding ValidationNote, Converter={StaticResource VisibleWhen}}" />
+                </StackPanel>
+            </DockPanel>
+            <TextBlock Text="Memeriksa…" Margin="0,8,0,0" Visibility="{Binding IsChecking, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0" FontWeight="SemiBold"
+                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
+            <TextBlock Style="{StaticResource Text.Caption}" Margin="0,8,0,12"
+                       Text="Perbaikan masuk draft dan diterapkan lewat transaksi; hasil nyata dibaca dari validasi Trainz sesudahnya. Tidak semua masalah dapat diperbaiki otomatis." />
+
+            <ItemsControl ItemsSource="{Binding Cards}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <ContentControl Content="{Binding Class}" Focusable="False" />
+                                <TextBlock Text="{Binding Title}" Style="{StaticResource Text.H2}" Margin="0,6,0,0" />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="Penyebab" Style="{StaticResource Text.Caption}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Cause}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="1" Text="Bukti" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Evidence}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                    <TextBlock Grid.Row="2" Text="Dampak" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Impact}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding Actions}" Margin="0,10,0,0" Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,8,0">
+                                                <Button Style="{StaticResource Button.Small}" Content="{Binding Label}" Command="{Binding Command}"
+                                                        IsEnabled="{Binding Command, Converter={StaticResource HasValue}}"
+                                                        ToolTip="{Binding DisabledReason}" />
+                                                <TextBlock Text="{Binding DisabledReason}" Style="{StaticResource Text.Caption}"
+                                                           Visibility="{Binding DisabledReason, Converter={StaticResource VisibleWhen}}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

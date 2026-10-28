@@ -138,7 +138,8 @@ public static class ModificationEngine
         return new(true, "", edits, handled, uncertain);
     }
 
-    private static string NextFreeName(ConfigContainer table)
+    /// <summary>Nama angka berikutnya yang belum dipakai; nama yang ada tidak pernah dinomori ulang.</summary>
+    internal static string NextFreeName(ConfigContainer table)
     {
         var used = table.Children.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var max = table.Children

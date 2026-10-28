@@ -33,6 +33,7 @@
     <local:VisibleWhenConverter x:Key="VisibleWhen" />
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     <local:EnumIndexConverter x:Key="EnumIndex" />
+    <local:HasValueConverter x:Key="HasValue" />
     <local:RasterToBitmapConverter x:Key="RasterToBitmap" />
 
     <!-- Papan catur untuk menilai alpha (PRD 13.2 langkah 5). -->

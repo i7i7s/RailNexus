@@ -20,6 +20,16 @@ public sealed class TaskCard(string title, string caption, StatusLabel status, s
 
 public sealed record TaskGroup(string Title, IReadOnlyList<TaskCard> Cards);
 
+/// <summary>Tujuan setiap tombol tugas; null = modul belum tersedia dari tempat ini.</summary>
+public sealed record HubActions(
+    Action<IRole> OpenRole,
+    Action Back,
+    Action? OpenHistory = null,
+    Action? OpenEditor = null,
+    Action? OpenTexture = null,
+    Action? OpenDependency = null,
+    Action? OpenRepair = null);
+
 /// <summary>UI-03 Pusat edit aset: "Mau edit apa?" berdasarkan isi config aset (PRD 6.1, RN-025).</summary>
 public sealed class EditHubViewModel : ObservableObject, IPage
 {
@@ -28,24 +38,15 @@ public sealed class EditHubViewModel : ObservableObject, IPage
 
     private readonly AppSession _session;
     private readonly AssetWorkspace _workspace;
-    private readonly Action<IRole> _openRole;
-    private readonly Action _back;
-    private readonly Action? _openHistory;
-    private readonly Action? _openEditor;
-    private readonly Action? _openTexture;
+    private readonly HubActions _actions;
     private bool _loading;
     private string? _error;
 
-    public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, Action<IRole> openRole, Action back,
-        Action? openHistory = null, Action? openEditor = null, Action? openTexture = null)
+    public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, HubActions actions)
     {
-        _openTexture = openTexture;
-        _openHistory = openHistory;
-        _openEditor = openEditor;
         _session = session;
         _workspace = workspace;
-        _openRole = openRole;
-        _back = back;
+        _actions = actions;
         Footer = footer;
         RetryCommand = new AsyncCommand(() => LoadAsync(force: true));
         if (workspace.Document is not null) BuildGroups();
@@ -54,7 +55,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     public string Title => "Mau edit apa?";
     public FooterAction Footer { get; }
     public string? BackLabel => "Kembali ke Pustaka";
-    public void Back() => _back();
+    public void Back() => _actions.Back();
 
     public LibraryEntry Asset => _workspace.Entry;
     public ObservableCollection<TaskGroup> Groups { get; } = new();
@@ -99,8 +100,9 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         Groups.Add(new TaskGroup("Komponen & dependency",
         [
             roleCards["bogie"],
-            new TaskCard("Semua komponen & dependency", "Inventaris referensi per peran", NotYet,
-                "Inventaris dependency belum tersedia di aplikasi."),
+            DocCard("Semua komponen & dependency", doc is null ? "Inventaris referensi per peran"
+                : $"{RailNexus.Core.Dependencies.DependencyInventory.Collect(doc, _workspace.Entry.Kuid).Count} referensi · status dan turunan",
+                doc, _actions.OpenDependency),
         ]));
         Groups.Add(new TaskGroup("Tampilan, tekstur & model",
         [
@@ -110,12 +112,16 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         ]));
         Groups.Add(new TaskGroup("Periksa & lanjutan",
         [
-            new TaskCard("Periksa & perbaiki", "Diagnosis dan perbaikan yang dapat dibuktikan", NotYet,
-                "Pusat Perbaikan belum tersedia di versi ini."),
+            DocCard("Periksa & perbaiki", "Penyebab, bukti, dan tindakan yang tersedia", doc, _actions.OpenRepair),
             EditorCard(doc),
             HistoryCard(),
         ]));
     }
+
+    private TaskCard DocCard(string title, string caption, ConfigDocument? doc, Action? open) =>
+        new(title, caption, new("Terpandu", Tone.Info),
+            doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
+            open is null ? null : new RelayCommand(open));
 
     private TaskCard TextureCard()
     {
@@ -126,20 +132,20 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         var missing = RailNexus.Core.Texture.TextureInventory.Scan(snap, _workspace.Document)
             .Count(f => f.Kind == RailNexus.Core.Texture.InventoryKind.ImageWithoutMetadata);
         return new TaskCard("Tekstur & material", missing > 0 ? $"{images} gambar · {missing} tanpa metadata" : $"{images} gambar",
-            new("Terpandu", Tone.Info), null, _openTexture is null ? null : new RelayCommand(_openTexture));
+            new("Terpandu", Tone.Info), null, _actions.OpenTexture is null ? null : new RelayCommand(_actions.OpenTexture));
     }
 
     private TaskCard EditorCard(ConfigDocument? doc) =>
         new("Buka editor lanjutan", "Formulir, struktur, teks, dan perubahan", new("Terbatas", Tone.Info),
             doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
-            _openEditor is null ? null : new RelayCommand(_openEditor));
+            _actions.OpenEditor is null ? null : new RelayCommand(_actions.OpenEditor));
 
     private TaskCard HistoryCard()
     {
         var count = _session.Store.AllTxIds().Select(_session.Store.LoadManifest)
             .Count(m => m is not null && References.SameAsset(m.Kuid, _workspace.Entry.Kuid));
         return new TaskCard("Riwayat aset ini", count == 0 ? "Belum ada pekerjaan" : $"{count} pekerjaan · dapat ditinjau dan dibatalkan",
-            new("Tersedia", Tone.Ok), null, _openHistory is null ? null : new RelayCommand(_openHistory));
+            new("Tersedia", Tone.Ok), null, _actions.OpenHistory is null ? null : new RelayCommand(_actions.OpenHistory));
     }
 
     private static string RoleTitle(IRole role) => role.Id switch
@@ -178,7 +184,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         // Tingkat dukungan terlemah di antara slot yang ditampilkan.
         var support = slots.Select(s => s.Support).Max();
         string? reason = support is SupportLevel.NotSupported ? "Peran ini belum didukung untuk struktur aset ini." : null;
-        return new TaskCard(title, caption, Labels.Support(support), reason, new RelayCommand(() => _openRole(role)));
+        return new TaskCard(title, caption, Labels.Support(support), reason, new RelayCommand(() => _actions.OpenRole(role)));
     }
 
     /// <summary>Nama aset dari indeks bila ada (revisi apa pun); bila tidak, KUID apa adanya.</summary>

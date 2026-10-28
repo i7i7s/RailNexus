@@ -35,7 +35,7 @@ internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string
         var store = new TxStore(storeRoot);
         var runner = c.State == ConnectionState.Connected ? new TransactionRunner(sim, store) : null;
         return new AppSession("TRS19 simulasi — trs19", new LibraryIndex(dbPath, "trs19"), new EditFolderAssetReader(sim), store, runner,
-            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder);
+            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder, sim);
     }
 }
 
@@ -775,5 +775,104 @@ public sealed class AppViewModelTests : IDisposable
         Assert.NotNull(tex.Items[0].CollisionText);
         tex.Items[0].Collision = CollisionChoice.Replace;
         Assert.Null(tex.PrimaryDisabledReason);
+    }
+
+    // ------------------------------------------------------------- RN-008 / UI-13
+
+    [Fact]
+    public async Task Dependency_page_lists_references_with_status_and_reads_transitive()
+    {
+        _sim.Install(Horn2, new() { ["config.txt"] = Encoding.UTF8.GetBytes("kuid <kuid:999002:3101>\r\nkind \"horn\"\r\nlib <kuid:999009:1>\r\n") });
+        var main = await ConnectedShell();
+        Assert.False(main.Nav.Single(n => n.Key == "dependency").IsEnabled);
+        await main.OpenAssetAsync(Entry(main, Loco));
+        Assert.True(main.Nav.Single(n => n.Key == "dependency").IsEnabled);
+
+        var hub = (EditHubViewModel)main.CurrentPage;
+        hub.Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Semua komponen & dependency").Open!.Execute(null);
+        var dep = Assert.IsType<DependencyViewModel>(main.CurrentPage);
+        Assert.True(main.ShowDraftPanel);
+
+        var horn = dep.Rows.Single(r => r.Location == "hornsound");
+        Assert.Equal("Klakson Dua Nada KL-2", horn.TargetName);
+        Assert.Equal("Siap digunakan", horn.Status.Text);
+        Assert.NotNull(horn.Replace);
+        Assert.NotNull(horn.OpenTarget);
+        var bogey = dep.Rows.First(r => r.Location == "bogeys/0/bogey");
+        Assert.Equal("Belum ada di indeks", bogey.Status.Text);
+        Assert.Null(bogey.OpenTarget);
+        Assert.Equal("horn", dep.Rows.Single(r => r.Location == "kuid-table/horn").SymbolicName);
+        Assert.All(dep.Graph, g => Assert.Equal("Dependency-nya belum dibaca", g.Note));
+
+        await dep.ReadTransitiveCommand.ExecuteAsync();
+        Assert.Contains("1 terbaca", dep.Message);
+        Assert.Contains("belum ada di indeks", dep.Message);
+        Assert.Contains(dep.Graph, g => g.Depth == 2 && g.Kuid == "<kuid:999009:1>");
+        Assert.False(_sim.IsOpen(Horn2));
+    }
+
+    [Fact]
+    public async Task Repair_cards_follow_problem_classes_and_offer_actions_AC08()
+    {
+        using (var lib = new LibraryIndex(DbPath, "trs19"))
+        {
+            var e = lib.Get(Horn2)!;
+            lib.Upsert([e with { State = AssetState.Faulty }]);
+        }
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var hub = (EditHubViewModel)main.CurrentPage;
+        hub.Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Periksa & perbaiki").Open!.Execute(null);
+        var repair = Assert.IsType<RepairViewModel>(main.CurrentPage);
+
+        var card = repair.Cards.Single(c => c.Problem.Target == Horn2);
+        Assert.Equal("Terpasang tetapi bermasalah", card.Class.Text);
+        Assert.Contains("hornsound", card.Evidence);
+        Assert.Contains(card.Actions, a => a.Label == "Buka diagnosis target" && a.Command is not null);
+        Assert.Contains("Validator Trainz belum dijalankan", repair.Summary);
+
+        await repair.CheckCommand.ExecuteAsync();
+        Assert.Equal("Validator Trainz: tidak ada masalah.", repair.ValidationNote);
+        Assert.False(_sim.IsOpen(Loco));
+
+        card.Actions.Single(a => a.Label == "Pilih pengganti").Command!.Execute(null);
+        Assert.IsType<ReplaceViewModel>(main.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Repair_rule_R001_adds_kuid_table_entry_through_transaction()
+    {
+        var config = "kuid <kuid:999001:1300>\r\nhornsound <kuid:999002:3103>\r\nkuid-table\r\n{\r\n  horn <kuid:999002:3101>\r\n}\r\n";
+        _sim.Install(Wagon, new() { ["config.txt"] = Encoding.UTF8.GetBytes(config) });
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Wagon));
+        ((EditHubViewModel)main.CurrentPage).Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Periksa & perbaiki").Open!.Execute(null);
+        var repair = (RepairViewModel)main.CurrentPage;
+        var card = repair.Cards.Single(c => c.Title.StartsWith("Belum tercantum di kuid-table", StringComparison.Ordinal));
+        Assert.Contains("R001", card.Evidence);
+        card.Actions.Single().Command!.Execute(null);
+        Assert.Equal("1 perubahan siap", main.Draft!.CountLabel);
+        Assert.Equal("Sudah ada di draft", repair.Cards.Single(c => c.Title.StartsWith("Belum tercantum", StringComparison.Ordinal)).Actions.Single().Label);
+
+        await main.Draft.ApplyCommand.ExecuteAsync();
+        Assert.Equal("Berhasil", main.Draft.Outcome!.Status.Text);
+        var installed = Encoding.UTF8.GetString(_sim.InstalledFile(Wagon, "config.txt")!);
+        Assert.Contains("horn <kuid:999002:3101>", installed);   // nama simbolik lama tetap (AC-28)
+        Assert.Contains("<kuid:999002:3103>\r\n}", installed);
+    }
+
+    [Fact]
+    public async Task Repair_nav_lists_problem_assets()
+    {
+        var main = await ConnectedShell();
+        main.NavigateCommand.Execute(main.Nav.Single(n => n.Key == "perbaikan"));
+        var list = Assert.IsType<RepairListViewModel>(main.CurrentPage);
+        Assert.Contains(list.Rows, r => r.Name == "Gerbong Rusak");
+        Assert.Contains(list.Rows, r => r.Name == "Klakson Rusak");
+        list.Selected = list.Rows.Single(r => r.Name == "Gerbong Rusak");
+        list.OpenCommand.Execute(null);
+        await main.Loading;
+        var repair = Assert.IsType<RepairViewModel>(main.CurrentPage);
+        Assert.Contains(repair.Cards, c => c.Class.Text == "Config/berkas tidak konsisten" && c.Title.StartsWith("Config tidak dapat dibaca", StringComparison.Ordinal));
     }
 }

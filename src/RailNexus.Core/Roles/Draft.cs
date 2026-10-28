@@ -20,7 +20,11 @@ public abstract record DraftItem(string Module, string Summary)
     public sealed record WriteFile(string RelativePath, byte[] Bytes, string? BaseHash, string Module, string Summary)
         : DraftItem(Module, Summary);
 
-    public bool ChangesConfig => this is ReplaceKuid or SetText;
+    /// <summary>Menambah satu entri kuid-table (aturan perbaikan R001); nama entri lain tidak disentuh.</summary>
+    public sealed record AddKuidTableEntry(Kuid Kuid, string Module, string Summary)
+        : DraftItem(Module, Summary);
+
+    public bool ChangesConfig => this is ReplaceKuid or SetText or AddKuidTableEntry;
 }
 
 public sealed record DraftBuild(
@@ -56,6 +60,7 @@ public sealed class Draft(Kuid asset)
         (DraftItem.ReplaceKuid x, DraftItem.ReplaceKuid y) => x.SlotPath.Equals(y.SlotPath, StringComparison.OrdinalIgnoreCase),
         (DraftItem.SetText x, DraftItem.SetText y) => x.Path.Equals(y.Path, StringComparison.OrdinalIgnoreCase),
         (DraftItem.WriteFile x, DraftItem.WriteFile y) => SamePath(x.RelativePath, y.RelativePath),
+        (DraftItem.AddKuidTableEntry x, DraftItem.AddKuidTableEntry y) => References.SameAsset(x.Kuid, y.Kuid),
         _ => false,
     };
 
@@ -99,6 +104,24 @@ public sealed class Draft(Kuid asset)
                     if (!e.Ok) return Fail($"{s.Summary}: {e.Message}");
                     text = ConfigEditor.Apply(text, [e.Edit!]);
                     handled.Add($"{s.Summary} di '{s.Path}'");
+                    break;
+                }
+                case DraftItem.AddKuidTableEntry a:
+                {
+                    var tables = doc.Root.Named("kuid-table").Where(t => t.Container is not null).ToList();
+                    if (doc.HasErrors || tables.Count != 1 || tables[0].Container!.Close is null)
+                        return Fail($"{a.Summary}: kuid-table tidak ada, ganda, atau tidak ditutup.");
+                    var table = tables[0].Container!;
+                    if (table.Children.Any(c => c.Value?.Kuid is { } k && References.SameAsset(k, a.Kuid)))
+                    {
+                        handled.Add($"{a.Kuid} sudah tercantum di kuid-table; tidak ada yang ditambahkan.");
+                        break;
+                    }
+                    var name = ModificationEngine.NextFreeName(table);
+                    var add = ConfigEditor.AppendTag(doc, table, name, a.Kuid.ToString(), a.Summary);
+                    if (!add.Ok) return Fail($"{a.Summary}: {add.Message}");
+                    text = ConfigEditor.Apply(text, [add.Edit!]);
+                    handled.Add($"kuid-table: entri '{name}' {a.Kuid} ditambahkan");
                     break;
                 }
                 case DraftItem.WriteFile f:

@@ -18,6 +18,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private IPage _page;
     private LibraryViewModel? _library;
     private AssetWorkspace? _active;
+    private AssetWorkspace? _lastAsset;
     private DraftPanelViewModel? _draft;
 
     public MainViewModel(IConnectionService connections, SettingsStore? settings = null)
@@ -27,8 +28,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Nav =
         [
             new NavItem("pustaka", "Pustaka", "Sambungkan ke Trainz terlebih dahulu."),
-            new NavItem("dependency", "Dependency", NotYet),
-            new NavItem("perbaikan", "Perbaikan", NotYet),
+            new NavItem("dependency", "Dependency", "Buka aset dari Pustaka terlebih dahulu."),
+            new NavItem("perbaikan", "Perbaikan", "Sambungkan ke Trainz terlebih dahulu."),
             new NavItem("workshop", "Workshop", null),
             new NavItem("riwayat", "Riwayat", "Sambungkan ke Trainz terlebih dahulu."),
             new NavItem("pengaturan", "Pengaturan", null),
@@ -77,7 +78,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
     public bool ShowDraftPanel => ActiveAsset is not null &&
-        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or TextureViewModel { IsAssetMode: true };
+        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel
+            or TextureViewModel { IsAssetMode: true };
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
         : _session.Runner is null ? new("Terhubung · hanya baca", Tone.Warn)
@@ -100,6 +102,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
         _session = session;
         _library = null;
+        if (_lastAsset is { } last && !session.Workspaces.ContainsValue(last))
+        {
+            _lastAsset = null;
+            Nav.Single(n => n.Key == "dependency").DisabledReason = "Buka aset dari Pustaka terlebih dahulu.";
+        }
         if (_settings is not null && session.InstallationFolder is { } folder && _settings.Settings.TrainzFolder != folder)
         {
             _settings.Settings.TrainzFolder = folder;
@@ -110,6 +117,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Draft.Applied += (_, _) => { if (CurrentPage is EditHubViewModel hub) Loading = hub.LoadAsync(force: true); };
         Nav[0].DisabledReason = null;
         Nav.Single(n => n.Key == "riwayat").DisabledReason = null;
+        Nav.Single(n => n.Key == "perbaikan").DisabledReason = null;
         OnPropertyChanged(nameof(Session));
         OnPropertyChanged(nameof(Connection));
         OnPropertyChanged(nameof(ProfileLabel));
@@ -129,6 +137,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 ActiveAsset = null;
                 CurrentPage = new WorkshopViewModel(OpenTextureFolder);
                 MarkActive("workshop");
+                break;
+            case "dependency" when _session is not null && _lastAsset is { } last:
+                ActiveAsset = last;
+                CurrentPage = new DependencyViewModel(_session, last, Draft!.Footer, AssetNav(last));
+                MarkActive("dependency");
+                break;
+            case "perbaikan" when _session is not null:
+                ActiveAsset = null;
+                CurrentPage = new RepairListViewModel(_session, entry =>
+                {
+                    var ws = _session.Workspace(entry);
+                    OpenRepair(ws);
+                    if (ws.Document is null) Loading = ((RepairViewModel)CurrentPage).CheckCommand.ExecuteAsync();
+                });
+                MarkActive("perbaikan");
                 break;
             case "riwayat" when _session is not null:
                 ActiveAsset = null;
@@ -168,6 +191,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_session is null || Draft is null) return;
         var ws = _session.Workspace(entry);
         ActiveAsset = ws;
+        RememberAsset(ws);
         var hub = NewHub(ws);
         CurrentPage = hub;
         MarkActive("pustaka");
@@ -187,8 +211,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string StagingRoot => Path.Combine(_connections.DataRoot, "staging");
 
     private EditHubViewModel NewHub(AssetWorkspace ws) =>
-        new(_session!, ws, Draft!.Footer, OpenRole, ShowLibrary, () => OpenAssetHistory(ws), () => OpenEditor(ws),
-            () => CurrentPage = new TextureViewModel(ws, StagingRoot, () => BackToHub(ws)));
+        new(_session!, ws, Draft!.Footer, new HubActions(
+            OpenRole, ShowLibrary,
+            OpenHistory: () => OpenAssetHistory(ws),
+            OpenEditor: () => OpenEditor(ws),
+            OpenTexture: () => OpenTexture(ws),
+            OpenDependency: () => CurrentPage = new DependencyViewModel(_session!, ws, Draft!.Footer, AssetNav(ws)),
+            OpenRepair: () => OpenRepair(ws)));
+
+    private AssetNavigation AssetNav(AssetWorkspace ws) =>
+        new(OpenRole, entry => Loading = OpenAssetAsync(entry), () => OpenTexture(ws), () => OpenEditor(ws), () => BackToHub(ws));
+
+    private void OpenTexture(AssetWorkspace ws) => CurrentPage = new TextureViewModel(ws, StagingRoot, () => BackToHub(ws));
+
+    private void OpenRepair(AssetWorkspace ws)
+    {
+        ActiveAsset = ws;
+        CurrentPage = new RepairViewModel(_session!, ws, Draft!.Footer, AssetNav(ws));
+        MarkActive("perbaikan");
+    }
 
     private void OpenTextureFolder()
     {
@@ -201,6 +242,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (Draft is null) return;
         CurrentPage = new EditorViewModel(ws, Draft.Footer, () => BackToHub(ws));
+    }
+
+    private void RememberAsset(AssetWorkspace ws)
+    {
+        _lastAsset = ws;
+        Nav.Single(n => n.Key == "dependency").DisabledReason = null;
     }
 
     private void BackToHub(AssetWorkspace ws)

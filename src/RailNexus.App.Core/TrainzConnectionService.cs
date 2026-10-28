@@ -115,6 +115,6 @@ public sealed partial class TrainzConnectionService(AppSettings settings, string
         var library = new LibraryIndex(Path.Combine(dataRoot, "library.db"), profile.Id);
         var runner = check.State == ConnectionState.Connected ? new TransactionRunner(adapter, store) : null;
         return new AppSession($"{installation.Name} — {profile.Id}", library, new EditFolderAssetReader(adapter), store, runner,
-            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder);
+            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder, adapter);
     }
 }
