@@ -13,15 +13,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private const string NotYet = "Belum tersedia di versi ini.";
 
     private readonly IConnectionService _connections;
+    private readonly SettingsStore? _settings;
     private AppSession? _session;
     private IPage _page;
     private LibraryViewModel? _library;
     private AssetWorkspace? _active;
     private DraftPanelViewModel? _draft;
 
-    public MainViewModel(IConnectionService connections)
+    public MainViewModel(IConnectionService connections, SettingsStore? settings = null)
     {
         _connections = connections;
+        _settings = settings;
         Nav =
         [
             new NavItem("pustaka", "Pustaka", "Sambungkan ke Trainz terlebih dahulu."),
@@ -82,8 +84,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void OnConnected(AppSession session)
     {
-        _session?.Dispose();
+        // Draft tetap milik profil yang sama (AC-21); menyambung ulang ke profil itu tidak menghapusnya.
+        if (_session is { } old)
+        {
+            if (old.ProfileLabel == session.ProfileLabel)
+                foreach (var (k, ws) in old.Workspaces)
+                {
+                    ws.InvalidateConfig();
+                    session.Workspaces[k] = ws;
+                }
+            old.Dispose();
+        }
         _session = session;
+        _library = null;
+        if (_settings is not null && session.InstallationFolder is { } folder && _settings.Settings.TrainzFolder != folder)
+        {
+            _settings.Settings.TrainzFolder = folder;
+            try { _settings.Save(); } catch (IOException) { } // pengaturan folder hanya kenyamanan
+        }
         Draft = new DraftPanelViewModel(session);
         // Setelah transaksi, isi aset dibaca ulang agar tugas dan draft berikutnya memakai keadaan terbaru.
         Draft.Applied += (_, _) => { if (CurrentPage is EditHubViewModel hub) Loading = hub.LoadAsync(force: true); };
@@ -97,6 +115,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavItem item)
     {
+        // Berpindah halaman atau profil ditunda selama transaksi tulis berjalan (PRD 7).
+        if (Draft?.ApplyCommand.IsRunning == true) return;
         switch (item.Key)
         {
             case "pustaka":
@@ -109,10 +129,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
             case "pengaturan":
                 ActiveAsset = null;
-                CurrentPage = new ConnectViewModel(_connections, OnConnected);
+                CurrentPage = _settings is null || _session is null
+                    ? new ConnectViewModel(_connections, OnConnected)
+                    : new SettingsViewModel(_settings, _connections, _session, ShowConnect);
                 MarkActive("pengaturan");
                 break;
         }
+    }
+
+    private void ShowConnect()
+    {
+        ActiveAsset = null;
+        CurrentPage = new ConnectViewModel(_connections, OnConnected);
+        MarkActive("pengaturan");
     }
 
     public void ShowLibrary()

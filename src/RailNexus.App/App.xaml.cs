@@ -18,14 +18,13 @@ public partial class App : Application
 
         // Lokasi data sama dengan CLI Tahap 0 agar indeks pustaka dan riwayat transaksi dipakai bersama.
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RailNexus");
-        var settingsPath = Path.Combine(appData, "app-settings.json");
-        var settings = AppSettings.Load(settingsPath);
-        if (!File.Exists(settingsPath)) settings.Save(settingsPath);
+        var settings = new SettingsStore(Path.Combine(appData, "app-settings.json"));
+        if (!File.Exists(settings.Path)) settings.Save();
 
         var profilePath = Path.Combine(AppContext.BaseDirectory, "profiles", "trs19.json");
-        var connections = new TrainzConnectionService(settings, profilePath, Path.Combine(appData, "tahap0"), new ProcessRunner());
+        var connections = new TrainzConnectionService(settings.Settings, profilePath, Path.Combine(appData, "tahap0"), new ProcessRunner());
 
-        _main = new MainViewModel(connections);
+        _main = new MainViewModel(connections, settings);
         MainWindow = new MainWindow { DataContext = _main };
         MainWindow.Show();
     }

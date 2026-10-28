@@ -37,7 +37,18 @@ public sealed class AppSettings
             .OfType<(int, int)>().ToHashSet();
 }
 
+/// <summary>Pengaturan beserta lokasi penyimpanannya.</summary>
+public sealed class SettingsStore(string path)
+{
+    public string Path => path;
+    public AppSettings Settings { get; } = AppSettings.Load(path);
+    public void Save() => Settings.Save(path);
+}
+
 public sealed record InstallationCandidate(string Name, string Folder, bool ToolFound);
+
+/// <summary>Satu operasi profil build beserta status verifikasinya (UI-25: kemampuan yang diuji).</summary>
+public sealed record Capability(string Operation, StatusLabel Status, string Evidence);
 
 public enum ConnectionState
 {
@@ -108,9 +119,11 @@ public sealed class AppSession(
     IAssetReader assetReader,
     TxStore store,
     TransactionRunner? runner,
-    string? writeDisabledReason) : IDisposable
+    string? writeDisabledReason,
+    string? installationFolder = null) : IDisposable
 {
     public string ProfileLabel => profileLabel;
+    public string? InstallationFolder => installationFolder;
     public LibraryIndex Library => library;
     public IAssetReader AssetReader => assetReader;
     /// <summary>Jurnal dan backup transaksi profil ini, untuk Riwayat.</summary>
@@ -188,4 +201,8 @@ public interface IConnectionService
     InstallationCandidate Inspect(string folder);
     Task<ConnectionCheck> CheckAsync(InstallationCandidate installation, CancellationToken ct = default);
     AppSession Open(InstallationCandidate installation, ConnectionCheck check);
+    /// <summary>Operasi di profil build beserta bukti verifikasinya.</summary>
+    IReadOnlyList<Capability> Capabilities();
+    /// <summary>Folder data (indeks, jurnal, backup).</summary>
+    string DataRoot { get; }
 }

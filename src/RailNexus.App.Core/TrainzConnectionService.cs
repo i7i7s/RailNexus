@@ -18,6 +18,31 @@ public sealed partial class TrainzConnectionService(AppSettings settings, string
     [GeneratedRegex(@"\d{5,}")]
     private static partial Regex BuildNumber();
 
+    public string DataRoot => dataRoot;
+
+    public IReadOnlyList<Capability> Capabilities()
+    {
+        var profile = CommandProfile.Load(profilePath);
+        return profile.Commands.Select(kv => new Capability(
+            OperationLabel(kv.Key),
+            kv.Value.Verified ? new StatusLabel("Terverifikasi", Tone.Ok) : new StatusLabel("Belum diverifikasi", Tone.Warn),
+            kv.Value.Evidence ?? "")).ToList();
+    }
+
+    internal static string OperationLabel(TrainzOp op) => op switch
+    {
+        TrainzOp.Help => "Daftar perintah",
+        TrainzOp.Version => "Versi build",
+        TrainzOp.Status => "Status aset",
+        TrainzOp.BeginEdit => "Buka untuk diedit",
+        TrainzOp.Commit => "Submit",
+        TrainzOp.Revert => "Batalkan edit",
+        TrainzOp.Validate => "Validasi",
+        TrainzOp.ImportFolder => "Impor folder",
+        TrainzOp.StatusBatch => "Status banyak aset",
+        _ => op.ToString(),
+    };
+
     public IReadOnlyList<InstallationCandidate> FindInstallations()
     {
         var list = new List<InstallationCandidate>();
@@ -90,6 +115,6 @@ public sealed partial class TrainzConnectionService(AppSettings settings, string
         var library = new LibraryIndex(Path.Combine(dataRoot, "library.db"), profile.Id);
         var runner = check.State == ConnectionState.Connected ? new TransactionRunner(adapter, store) : null;
         return new AppSession($"{installation.Name} — {profile.Id}", library, new EditFolderAssetReader(adapter), store, runner,
-            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null);
+            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder);
     }
 }

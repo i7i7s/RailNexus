@@ -18,6 +18,11 @@ internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string
 
     public InstallationCandidate Inspect(string folder) => new(Path.GetFileName(folder), folder, false);
 
+    public string DataRoot => storeRoot;
+
+    public IReadOnlyList<Capability> Capabilities() =>
+        [new Capability("Submit", new StatusLabel("Terverifikasi", Tone.Ok), "simulasi")];
+
     public Task<ConnectionCheck> CheckAsync(InstallationCandidate installation, CancellationToken ct = default) =>
         Task.FromResult(installation.ToolFound ? check
             : new ConnectionCheck(ConnectionState.ToolNotFound, "", "TrainzUtil.exe tidak ditemukan di folder ini.", []));
@@ -28,7 +33,7 @@ internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string
         var store = new TxStore(storeRoot);
         var runner = c.State == ConnectionState.Connected ? new TransactionRunner(sim, store) : null;
         return new AppSession("TRS19 simulasi — trs19", new LibraryIndex(dbPath, "trs19"), new EditFolderAssetReader(sim), store, runner,
-            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null);
+            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder);
     }
 }
 
@@ -516,5 +521,53 @@ public sealed class AppViewModelTests : IDisposable
         history.Back();
         await main.Loading;
         Assert.IsType<EditHubViewModel>(main.CurrentPage);
+    }
+
+    // ------------------------------------------------------------- UI-25
+
+    [Fact]
+    public async Task Settings_edits_test_kuids_and_keeps_draft()
+    {
+        var store = new SettingsStore(Path.Combine(_root, "app-settings.json"));
+        var main = new MainViewModel(new FakeConnections(_sim, DbPath, Path.Combine(_root, "tx"), Connected), store);
+        var connect = (ConnectViewModel)main.CurrentPage;
+        await connect.CheckCommand.ExecuteAsync();
+        connect.ConnectCommand.Execute(null);
+        await main.OpenAssetAsync(Entry(main, Loco));
+        await AddHorn3(main);
+
+        main.NavigateCommand.Execute(main.Nav.Single(n => n.Key == "pengaturan"));
+        var settings = Assert.IsType<SettingsViewModel>(main.CurrentPage);
+        Assert.False(settings.Footer.IsEnabled);
+        Assert.Contains(settings.Capabilities, c => c.Status.Text == "Terverifikasi");
+
+        settings.NewKuid = "bukan kuid";
+        settings.AddKuidCommand.Execute(null);
+        Assert.NotNull(settings.KuidError);
+
+        settings.NewKuid = "<kuid:-2:117104311>";
+        settings.AddKuidCommand.Execute(null);
+        Assert.Null(settings.KuidError);
+        settings.NewKuid = "<kuid:-2:117104311>";
+        settings.AddKuidCommand.Execute(null);
+        Assert.Equal("KUID ini sudah ada di daftar.", settings.KuidError);
+
+        Assert.True(settings.Footer.IsEnabled);
+        settings.SaveCommand.Execute(null);
+        Assert.Equal(["<kuid:-2:117104311>"], AppSettings.Load(store.Path).WritableTestKuids);
+        Assert.Contains("Sambungkan ulang", settings.Footer.Hint);
+
+        settings.TestKuids.Single().RemoveCommand.Execute(null);
+        Assert.Empty(settings.TestKuids);
+        Assert.True(settings.Footer.IsEnabled);
+
+        // Menyambung ulang ke profil yang sama mempertahankan draft (AC-37, AC-21).
+        settings.ChangeInstallationCommand.Execute(null);
+        var reconnect = Assert.IsType<ConnectViewModel>(main.CurrentPage);
+        await reconnect.CheckCommand.ExecuteAsync();
+        reconnect.ConnectCommand.Execute(null);
+        await main.OpenAssetAsync(Entry(main, Loco));
+        Assert.Equal("1 perubahan siap", main.Draft!.CountLabel);
+        Assert.Equal(@"C:\Simulasi\TRS19", AppSettings.Load(store.Path).TrainzFolder);
     }
 }
