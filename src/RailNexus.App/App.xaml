@@ -29,6 +29,9 @@
             <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
                 <views:SettingsView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:EditorViewModel}">
+                <views:EditorView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DraftPanelViewModel}">
                 <views:DraftPanelView />
             </DataTemplate>

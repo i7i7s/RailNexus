@@ -53,3 +53,13 @@ public sealed class VisibleWhenConverter : IValueConverter
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Enum ↔ indeks, untuk TabControl.SelectedIndex.</summary>
+public sealed class EnumIndexConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is Enum e ? System.Convert.ToInt32(e, CultureInfo.InvariantCulture) : 0;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is int i && parameter is Type t ? Enum.ToObject(t, i) : Binding.DoNothing;
+}

@@ -32,6 +32,7 @@
     <local:ToneBrushConverter x:Key="ToneFg" Foreground="True" />
     <local:VisibleWhenConverter x:Key="VisibleWhen" />
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    <local:EnumIndexConverter x:Key="EnumIndex" />
 
     <!-- Tipografi -->
     <Style x:Key="Text.H1" TargetType="TextBlock">

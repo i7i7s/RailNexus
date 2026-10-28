@@ -48,7 +48,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _page;
         private set
         {
+            var old = _page;
             if (!Set(ref _page, value)) return;
+            (old as IDisposable)?.Dispose();
             BackCommand.Refresh();
             OnPropertyChanged(nameof(ShowDraftPanel));
         }
@@ -74,7 +76,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
-    public bool ShowDraftPanel => ActiveAsset is not null && CurrentPage is EditHubViewModel or ReplaceViewModel;
+    public bool ShowDraftPanel => ActiveAsset is not null && CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel;
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
         : _session.Runner is null ? new("Terhubung · hanya baca", Tone.Warn)
@@ -177,7 +179,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     private EditHubViewModel NewHub(AssetWorkspace ws) =>
-        new(_session!, ws, Draft!.Footer, OpenRole, ShowLibrary, () => OpenAssetHistory(ws));
+        new(_session!, ws, Draft!.Footer, OpenRole, ShowLibrary, () => OpenAssetHistory(ws), () => OpenEditor(ws));
+
+    private void OpenEditor(AssetWorkspace ws)
+    {
+        if (Draft is null) return;
+        CurrentPage = new EditorViewModel(ws, Draft.Footer, () => BackToHub(ws));
+    }
 
     private void BackToHub(AssetWorkspace ws)
     {

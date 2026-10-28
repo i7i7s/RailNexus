@@ -31,13 +31,15 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     private readonly Action<IRole> _openRole;
     private readonly Action _back;
     private readonly Action? _openHistory;
+    private readonly Action? _openEditor;
     private bool _loading;
     private string? _error;
 
     public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, Action<IRole> openRole, Action back,
-        Action? openHistory = null)
+        Action? openHistory = null, Action? openEditor = null)
     {
         _openHistory = openHistory;
+        _openEditor = openEditor;
         _session = session;
         _workspace = workspace;
         _openRole = openRole;
@@ -109,11 +111,15 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         [
             new TaskCard("Periksa & perbaiki", "Diagnosis dan perbaikan yang dapat dibuktikan", NotYet,
                 "Pusat Perbaikan belum tersedia di versi ini."),
-            new TaskCard("Buka editor lanjutan", "Formulir, struktur, dan teks config", NotYet,
-                "Editor aset lengkap belum tersedia (P1)."),
+            EditorCard(doc),
             HistoryCard(),
         ]));
     }
+
+    private TaskCard EditorCard(ConfigDocument? doc) =>
+        new("Buka editor lanjutan", "Formulir, struktur, teks, dan perubahan", new("Terbatas", Tone.Info),
+            doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
+            _openEditor is null ? null : new RelayCommand(_openEditor));
 
     private TaskCard HistoryCard()
     {

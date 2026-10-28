@@ -2,6 +2,7 @@ using System.Text;
 using RailNexus.App.Core;
 using RailNexus.App.Core.ViewModels;
 using RailNexus.Core;
+using RailNexus.Core.Config;
 using RailNexus.Core.Library;
 using RailNexus.Core.Roles;
 using RailNexus.Core.Tx;
@@ -569,5 +570,74 @@ public sealed class AppViewModelTests : IDisposable
         await main.OpenAssetAsync(Entry(main, Loco));
         Assert.Equal("1 perubahan siap", main.Draft!.CountLabel);
         Assert.Equal(@"C:\Simulasi\TRS19", AppSettings.Load(store.Path).TrainzFolder);
+    }
+
+    // ------------------------------------------------------------- UI-12
+
+    private static EditorViewModel OpenEditor(MainViewModel main)
+    {
+        var hub = (EditHubViewModel)main.CurrentPage;
+        hub.Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Buka editor lanjutan").Open!.Execute(null);
+        return Assert.IsType<EditorViewModel>(main.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Editor_form_saves_plan_and_shows_diff_EDITAC()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var editor = OpenEditor(main);
+        Assert.True(main.ShowDraftPanel);
+
+        var desc = editor.Fields.Single(f => f.Path == "description");
+        Assert.True(desc.IsEditable);
+        Assert.Contains(editor.Info, kv => kv.Key == "KUID" && kv.Value == "<kuid2:999001:1201:2>");
+        Assert.Contains(editor.Nodes, n => n.Name == "bogeys" && n.Kind == "Container" && n.Children.Count == 2);
+        Assert.Contains(editor.Lines, l => l.Text.StartsWith("hornsound", StringComparison.Ordinal));
+        // Tanpa perubahan: tidak ada diff dan tindakan utama tetap Terapkan & Selesai (EDIT-AC).
+        Assert.Empty(editor.Changes);
+        Assert.Equal("Terapkan & Selesai", editor.Footer.Label);
+
+        desc.Value = "Deskripsi baru\r\nbaris dua";
+        Assert.Equal("Simpan rencana", editor.Footer.Label);
+        editor.SaveCommand.Execute(null);
+        Assert.Equal(EditorTab.Changes, editor.Tab);
+        Assert.Equal("Terapkan & Selesai", editor.Footer.Label);
+        Assert.Equal("1 perubahan siap", main.Draft!.CountLabel);
+        Assert.Contains(editor.Changes, c => c.Kind == DiffKind.Removed && c.Text.Contains("Lokomotif diesel untuk lintas datar"));
+        Assert.Contains(editor.Changes, c => c.Kind == DiffKind.Added && c.Text.Contains("\"Deskripsi baru\\nbaris dua\""));
+
+        // Perubahan dari modul lain ikut terlihat di tab Perubahan.
+        await AddHornFromEditorBack(main);
+        editor = OpenEditor(main);
+        Assert.Contains(editor.Changes, c => c.Kind == DiffKind.Added && c.Text.Contains("<kuid:999002:3103>"));
+
+        // Mengembalikan nilai ke aslinya lalu menyimpan menghapus item dari draft.
+        var d2 = editor.Fields.Single(f => f.Path == "description");
+        d2.Value = d2.Original!;
+        Assert.Equal("Simpan rencana", editor.Footer.Label);
+        editor.SaveCommand.Execute(null);
+        Assert.Equal("1 perubahan siap", main.Draft.CountLabel);
+        Assert.DoesNotContain(main.ActiveAsset!.Draft.Items, i => i is DraftItem.SetText);
+    }
+
+    private static async Task AddHornFromEditorBack(MainViewModel main)
+    {
+        main.CurrentPage.Back();
+        await main.Loading;
+        await AddHorn3(main);
+    }
+
+    [Fact]
+    public async Task Editor_on_broken_config_locks_form_and_lists_problems()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Broken));
+        var editor = OpenEditor(main);
+        Assert.All(editor.Fields, f => Assert.False(f.IsEditable));
+        Assert.Contains("menunggu perbaikan", editor.Fields[1].LockedReason);
+        Assert.NotEmpty(editor.Problems);
+        Assert.StartsWith("Masalah · ", editor.ProblemsLabel);
+        Assert.Contains(editor.Lines, l => l.Issue is not null);
     }
 }
