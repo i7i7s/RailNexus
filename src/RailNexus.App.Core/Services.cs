@@ -58,39 +58,38 @@ public sealed record ConnectionCheck(ConnectionState State, string Build, string
     public bool CanOpen => State is ConnectionState.Connected or ConnectionState.ReadOnly;
 }
 
-/// <summary>Membaca isi config.txt aset terpasang untuk menyusun pilihan dan draft.</summary>
-public interface IAssetConfigReader
+/// <summary>Membaca isi aset terpasang (config dan berkas lain) untuk menyusun pilihan dan draft.</summary>
+public interface IAssetReader
 {
-    Task<OpResult<byte[]>> ReadConfigAsync(Kuid kuid, CancellationToken ct = default);
+    Task<OpResult<AssetSnapshot>> ReadSnapshotAsync(Kuid kuid, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Membaca config dengan pola yang sudah dibuktikan di Tahap 0: buka edit → baca berkas → revert.
+/// Membaca isi aset dengan pola yang sudah dibuktikan di Tahap 0: buka edit → salin isi → revert.
 /// Byte yang dibaca sama dengan yang nanti diverifikasi transaksi (AC-10). Aset yang sedang terbuka
 /// di luar RailNexus tidak disentuh (AC-09).
 /// </summary>
-public sealed class EditFolderConfigReader(ITrainzAdapter adapter) : IAssetConfigReader
+public sealed class EditFolderAssetReader(ITrainzAdapter adapter) : IAssetReader
 {
-    public async Task<OpResult<byte[]>> ReadConfigAsync(Kuid kuid, CancellationToken ct = default)
+    public async Task<OpResult<AssetSnapshot>> ReadSnapshotAsync(Kuid kuid, CancellationToken ct = default)
     {
         var status = await adapter.GetStatusAsync(kuid, ct).ConfigureAwait(false);
-        if (!status.IsSuccess) return new OpResult<byte[]>(status.Outcome, null, status.Message);
+        if (!status.IsSuccess) return new OpResult<AssetSnapshot>(status.Outcome, null, status.Message);
         if (status.Value!.State == AssetState.OpenForEdit)
-            return OpResult<byte[]>.Fail("Aset masih terbuka untuk diedit di luar RailNexus. Selesaikan atau batalkan dulu di Content Manager.");
+            return OpResult<AssetSnapshot>.Fail("Aset masih terbuka untuk diedit di luar RailNexus. Selesaikan atau batalkan dulu di Content Manager.");
         if (status.Value.State == AssetState.Missing)
-            return OpResult<byte[]>.Fail("Aset tidak terpasang di profil ini.");
+            return OpResult<AssetSnapshot>.Fail("Aset tidak terpasang di profil ini.");
 
         var edit = await adapter.BeginEditAsync(kuid, ct).ConfigureAwait(false);
-        if (!edit.IsSuccess) return new OpResult<byte[]>(edit.Outcome, null, $"Isi aset tidak dapat dibuka: {edit.Message}");
-        byte[]? bytes = null;
-        string error = "";
+        if (!edit.IsSuccess) return new OpResult<AssetSnapshot>(edit.Outcome, null, $"Isi aset tidak dapat dibuka: {edit.Message}");
+        AssetSnapshot? snapshot = null;
+        var error = "";
         try
         {
-            var path = SafePath.Combine(edit.Value!, "config.txt");
-            if (File.Exists(path)) bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
-            else error = "config.txt tidak ditemukan di folder aset.";
+            snapshot = AssetSnapshot.Capture(edit.Value!);
+            if (!snapshot.Exists("config.txt")) error = "config.txt tidak ditemukan di folder aset.";
         }
-        catch (IOException ex) { error = $"config.txt tidak dapat dibaca: {ex.Message}"; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { error = $"Isi aset tidak dapat dibaca: {ex.Message}"; }
         finally
         {
             var rv = await adapter.RevertAsync(kuid, CancellationToken.None).ConfigureAwait(false);
@@ -98,7 +97,7 @@ public sealed class EditFolderConfigReader(ITrainzAdapter adapter) : IAssetConfi
                 error = (error.Length > 0 ? error + " " : "") +
                         $"Aset dibuka untuk dibaca tetapi belum dapat ditutup kembali ({rv.Message}). Periksa di Content Manager.";
         }
-        return bytes is not null && error.Length == 0 ? OpResult<byte[]>.Ok(bytes) : OpResult<byte[]>.Fail(error);
+        return snapshot is not null && error.Length == 0 ? OpResult<AssetSnapshot>.Ok(snapshot) : OpResult<AssetSnapshot>.Fail(error);
     }
 }
 
@@ -106,13 +105,16 @@ public sealed class EditFolderConfigReader(ITrainzAdapter adapter) : IAssetConfi
 public sealed class AppSession(
     string profileLabel,
     LibraryIndex library,
-    IAssetConfigReader configReader,
+    IAssetReader assetReader,
+    TxStore store,
     TransactionRunner? runner,
     string? writeDisabledReason) : IDisposable
 {
     public string ProfileLabel => profileLabel;
     public LibraryIndex Library => library;
-    public IAssetConfigReader ConfigReader => configReader;
+    public IAssetReader AssetReader => assetReader;
+    /// <summary>Jurnal dan backup transaksi profil ini, untuk Riwayat.</summary>
+    public TxStore Store => store;
     /// <summary>null bila penulisan tidak tersedia; alasannya di <see cref="WriteDisabledReason"/>.</summary>
     public TransactionRunner? Runner => runner;
     public string? WriteDisabledReason => runner is null ? writeDisabledReason ?? "Penulisan tidak tersedia." : null;
@@ -135,6 +137,8 @@ public sealed class AssetWorkspace(LibraryEntry entry)
 {
     public LibraryEntry Entry { get; set; } = entry;
     public Draft Draft { get; } = new(entry.Kuid);
+    /// <summary>Isi aset terakhir yang dibaca; null bila belum dibaca atau sudah kedaluwarsa.</summary>
+    public AssetSnapshot? Snapshot { get; private set; }
     public byte[]? ConfigBytes { get; private set; }
     public string? ConfigText { get; private set; }
     public ConfigDocument? Document { get; private set; }
@@ -142,7 +146,13 @@ public sealed class AssetWorkspace(LibraryEntry entry)
 
     public event EventHandler? Changed;
 
-    public void SetConfig(byte[] bytes)
+    public void SetSnapshot(AssetSnapshot snapshot)
+    {
+        Snapshot = snapshot;
+        SetConfig(snapshot.Read("config.txt")!);
+    }
+
+    private void SetConfig(byte[] bytes)
     {
         ConfigBytes = bytes;
         var bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
@@ -161,6 +171,7 @@ public sealed class AssetWorkspace(LibraryEntry entry)
     /// <summary>Isi config tidak lagi dianggap terkini (mis. setelah transaksi); dibaca ulang saat dibutuhkan.</summary>
     public void InvalidateConfig()
     {
+        Snapshot = null;
         ConfigBytes = null;
         ConfigText = null;
         Document = null;

@@ -28,7 +28,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             new NavItem("dependency", "Dependency", NotYet),
             new NavItem("perbaikan", "Perbaikan", NotYet),
             new NavItem("workshop", "Workshop", NotYet),
-            new NavItem("riwayat", "Riwayat", NotYet),
+            new NavItem("riwayat", "Riwayat", "Sambungkan ke Trainz terlebih dahulu."),
             new NavItem("pengaturan", "Pengaturan", null),
         ];
         NavigateCommand = new ParamCommand<NavItem>(Navigate, n => n.IsEnabled);
@@ -88,6 +88,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // Setelah transaksi, isi aset dibaca ulang agar tugas dan draft berikutnya memakai keadaan terbaru.
         Draft.Applied += (_, _) => { if (CurrentPage is EditHubViewModel hub) Loading = hub.LoadAsync(force: true); };
         Nav[0].DisabledReason = null;
+        Nav.Single(n => n.Key == "riwayat").DisabledReason = null;
         OnPropertyChanged(nameof(Session));
         OnPropertyChanged(nameof(Connection));
         OnPropertyChanged(nameof(ProfileLabel));
@@ -100,6 +101,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             case "pustaka":
                 ShowLibrary();
+                break;
+            case "riwayat" when _session is not null:
+                ActiveAsset = null;
+                CurrentPage = new HistoryViewModel(_session);
+                MarkActive("riwayat");
                 break;
             case "pengaturan":
                 ActiveAsset = null;
@@ -125,7 +131,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_session is null || Draft is null) return;
         var ws = _session.Workspace(entry);
         ActiveAsset = ws;
-        var hub = new EditHubViewModel(_session, ws, Draft.Footer, OpenRole, ShowLibrary);
+        var hub = NewHub(ws);
         CurrentPage = hub;
         MarkActive("pustaka");
         await hub.LoadAsync();
@@ -137,10 +143,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var ws = ActiveAsset;
         CurrentPage = new ReplaceViewModel(_session, ws, role, Draft.Footer, () =>
         {
-            var hub = new EditHubViewModel(_session, ws, Draft.Footer, OpenRole, ShowLibrary);
-            CurrentPage = hub;
-            Loading = hub.LoadAsync();
+            BackToHub(ws);
         });
+    }
+
+    private EditHubViewModel NewHub(AssetWorkspace ws) =>
+        new(_session!, ws, Draft!.Footer, OpenRole, ShowLibrary, () => OpenAssetHistory(ws));
+
+    private void BackToHub(AssetWorkspace ws)
+    {
+        ActiveAsset = ws;
+        var hub = NewHub(ws);
+        CurrentPage = hub;
+        MarkActive("pustaka");
+        Loading = hub.LoadAsync();
+    }
+
+    private void OpenAssetHistory(AssetWorkspace ws)
+    {
+        if (_session is null) return;
+        CurrentPage = new HistoryViewModel(_session, ws.Entry.Kuid, () => BackToHub(ws));
     }
 
     private void MarkActive(string key)

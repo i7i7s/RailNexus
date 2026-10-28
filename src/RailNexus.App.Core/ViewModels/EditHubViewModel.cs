@@ -30,11 +30,14 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     private readonly AssetWorkspace _workspace;
     private readonly Action<IRole> _openRole;
     private readonly Action _back;
+    private readonly Action? _openHistory;
     private bool _loading;
     private string? _error;
 
-    public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, Action<IRole> openRole, Action back)
+    public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, Action<IRole> openRole, Action back,
+        Action? openHistory = null)
     {
+        _openHistory = openHistory;
         _session = session;
         _workspace = workspace;
         _openRole = openRole;
@@ -70,8 +73,8 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         Error = null;
         try
         {
-            var r = await _session.ConfigReader.ReadConfigAsync(_workspace.Entry.Kuid);
-            if (r.IsSuccess) _workspace.SetConfig(r.Value!);
+            var r = await _session.AssetReader.ReadSnapshotAsync(_workspace.Entry.Kuid);
+            if (r.IsSuccess) _workspace.SetSnapshot(r.Value!);
             else
             {
                 _workspace.SetReadError(r.Message);
@@ -108,9 +111,16 @@ public sealed class EditHubViewModel : ObservableObject, IPage
                 "Pusat Perbaikan belum tersedia di versi ini."),
             new TaskCard("Buka editor lanjutan", "Formulir, struktur, dan teks config", NotYet,
                 "Editor aset lengkap belum tersedia (P1)."),
-            new TaskCard("Riwayat aset ini", "Pekerjaan sebelumnya dan Undo", NotYet,
-                "Riwayat belum tersedia di aplikasi; sementara gunakan 'railnexus list' dan 'railnexus undo' di CLI."),
+            HistoryCard(),
         ]));
+    }
+
+    private TaskCard HistoryCard()
+    {
+        var count = _session.Store.AllTxIds().Select(_session.Store.LoadManifest)
+            .Count(m => m is not null && References.SameAsset(m.Kuid, _workspace.Entry.Kuid));
+        return new TaskCard("Riwayat aset ini", count == 0 ? "Belum ada pekerjaan" : $"{count} pekerjaan · dapat ditinjau dan dibatalkan",
+            new("Tersedia", Tone.Ok), null, _openHistory is null ? null : new RelayCommand(_openHistory));
     }
 
     private static string RoleTitle(IRole role) => role.Id switch

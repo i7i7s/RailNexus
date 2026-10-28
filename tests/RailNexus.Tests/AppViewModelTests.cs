@@ -25,8 +25,9 @@ internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string
     public AppSession Open(InstallationCandidate installation, ConnectionCheck c)
     {
         Opened++;
-        var runner = c.State == ConnectionState.Connected ? new TransactionRunner(sim, new TxStore(storeRoot)) : null;
-        return new AppSession("TRS19 simulasi — trs19", new LibraryIndex(dbPath, "trs19"), new EditFolderConfigReader(sim), runner,
+        var store = new TxStore(storeRoot);
+        var runner = c.State == ConnectionState.Connected ? new TransactionRunner(sim, store) : null;
+        return new AppSession("TRS19 simulasi — trs19", new LibraryIndex(dbPath, "trs19"), new EditFolderAssetReader(sim), store, runner,
             runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null);
     }
 }
@@ -110,8 +111,8 @@ public sealed class AppViewModelTests : IDisposable
         Assert.True(main.Nav.Single(n => n.Key == "pustaka").IsActive);
         Assert.Equal("Terhubung", main.Connection.Text);
         // Modul yang belum ada tetap tampil dengan alasan.
-        Assert.All(main.Nav.Where(n => n.Key is "dependency" or "perbaikan" or "workshop" or "riwayat"),
-            n => Assert.False(string.IsNullOrEmpty(n.DisabledReason)));
+        Assert.True(main.Nav.Single(n => n.Key == "riwayat").IsEnabled);
+        Assert.All(main.Nav.Where(n => !n.IsEnabled), n => Assert.False(string.IsNullOrEmpty(n.DisabledReason)));
     }
 
     [Fact]
@@ -245,7 +246,8 @@ public sealed class AppViewModelTests : IDisposable
         Assert.Contains("masih terbuka untuk diedit", hub.Error, StringComparison.OrdinalIgnoreCase);
         Assert.True(_sim.IsOpen(Loco));
         Assert.Equal(revertsBefore, _sim.RevertCalls);
-        Assert.All(hub.Groups.SelectMany(g => g.Cards), c => Assert.False(c.IsAvailable));
+        var roleTitles = new[] { "Ganti klakson", "Ganti suara mesin", "Suara roda-rel", "Ganti bogie" };
+        Assert.All(hub.Groups.SelectMany(g => g.Cards).Where(c => roleTitles.Contains(c.Title)), c => Assert.False(c.IsAvailable));
     }
 
     // ------------------------------------------------------- draft + terapkan
@@ -405,5 +407,114 @@ public sealed class AppViewModelTests : IDisposable
         Assert.True(main.Draft.IsEmpty);
         Assert.Empty(main.ActiveAsset!.Draft.Items);
         Assert.Equal("Belum ada perubahan di draft.", main.Draft.ApplyDisabledReason);
+    }
+
+    // ------------------------------------------------------------- UI-24
+
+    private async Task<MainViewModel> AppliedHorn3()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        await AddHorn3(main);
+        await main.Draft!.ApplyCommand.ExecuteAsync();
+        await main.Loading;
+        Assert.Equal("Berhasil", main.Draft.Outcome!.Status.Text);
+        return main;
+    }
+
+    private static HistoryViewModel OpenHistory(MainViewModel main)
+    {
+        main.NavigateCommand.Execute(main.Nav.Single(n => n.Key == "riwayat"));
+        return Assert.IsType<HistoryViewModel>(main.CurrentPage);
+    }
+
+    [Fact]
+    public async Task History_lists_work_and_undo_restores_exact_bytes_AC13()
+    {
+        var main = await AppliedHorn3();
+        var history = OpenHistory(main);
+        var row = Assert.Single(history.Rows);
+        Assert.Equal("Lokomotif Diesel DX-200", row.AssetName);
+        Assert.Equal("Berhasil", row.Status.Text);
+        Assert.Equal("Perubahan", row.KindLabel);
+        Assert.Equal("config.txt", Assert.Single(row.Files).Path);
+        Assert.Equal("Diubah", row.Files[0].Change);
+        Assert.StartsWith("Backup ", row.BackupLabel);
+        Assert.Contains(row.Steps, st => st.Phase == "Submitted");
+        Assert.True(history.Footer.IsEnabled);
+
+        await history.UndoCommand.ExecuteAsync();
+        Assert.Equal("Berhasil", history.Outcome!.Status.Text);
+        Assert.Equal(_locoConfig, _sim.InstalledFile(Loco, "config.txt"));
+
+        Assert.Equal(2, history.Rows.Count);
+        Assert.Equal("Undo", history.Rows[0].KindLabel);
+        var original = history.Rows.Single(r => r.KindLabel == "Perubahan");
+        history.Selected = original;
+        Assert.StartsWith("Perubahan ini sudah dibatalkan", history.UndoDisabledReason);
+        // Isi aset kedaluwarsa setelah undo; dibaca ulang saat aset dibuka lagi.
+        Assert.Null(main.Session!.Workspaces[Loco].Document);
+    }
+
+    [Fact]
+    public async Task Undo_after_external_edit_shows_conflict_AC14()
+    {
+        var main = await AppliedHorn3();
+        var external = Encoding.UTF8.GetBytes("kuid <kuid2:999001:1201:2>\r\n// diubah editor lain\r\n");
+        _sim.ExternalEdit(Loco, "config.txt", external);
+
+        var history = OpenHistory(main);
+        await history.UndoCommand.ExecuteAsync();
+        Assert.Equal("Konflik", history.Outcome!.Status.Text);
+        Assert.Contains(history.Outcome.Details, d => d.Contains("config.txt"));
+        Assert.Equal(external, _sim.InstalledFile(Loco, "config.txt"));
+    }
+
+    [Fact]
+    public async Task Uncertain_submit_is_reconciled_from_history_AC11()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        await AddHorn3(main);
+        _sim.Commit = CommitBehavior.TimeoutNotApplied;
+        await main.Draft!.ApplyCommand.ExecuteAsync();
+        await main.Loading;
+        Assert.Equal("Hasil submit belum pasti", main.Draft.Outcome!.Status.Text);
+        Assert.Equal(1, _sim.CommitCalls);
+
+        var history = OpenHistory(main);
+        var row = history.Rows.Single(r => !r.IsClosed);
+        history.Selected = row;
+        Assert.Equal("Belum selesai · perlu rekonsiliasi", row.Status.Text);
+        Assert.False(history.Footer.IsEnabled);
+        Assert.Contains("rekonsiliasi", history.Footer.Hint);
+
+        // Tanpa pilihan eksplisit, edit tertunda tidak dibuang.
+        await history.ReconcileCommand.ExecuteAsync();
+        Assert.Equal("Perlu tindakan", history.Outcome!.Status.Text);
+        Assert.True(_sim.IsOpen(Loco));
+
+        history.Selected = history.Rows.Single(r => !r.IsClosed);
+        await history.DiscardPendingCommand.ExecuteAsync();
+        Assert.Equal("Dibatalkan dan dipulihkan", history.Outcome!.Status.Text);
+        Assert.False(_sim.IsOpen(Loco));
+        Assert.Equal(_locoConfig, _sim.InstalledFile(Loco, "config.txt"));
+        Assert.Equal(1, _sim.CommitCalls); // submit tidak diulang
+    }
+
+    [Fact]
+    public async Task Asset_history_card_opens_filtered_history()
+    {
+        var main = await AppliedHorn3();
+        var card = ((EditHubViewModel)main.CurrentPage).Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Riwayat aset ini");
+        Assert.True(card.IsAvailable);
+        Assert.StartsWith("1 pekerjaan", card.Caption);
+        card.Open!.Execute(null);
+        var history = Assert.IsType<HistoryViewModel>(main.CurrentPage);
+        Assert.Equal("Riwayat aset ini", history.Title);
+        Assert.Single(history.Rows);
+        history.Back();
+        await main.Loading;
+        Assert.IsType<EditHubViewModel>(main.CurrentPage);
     }
 }

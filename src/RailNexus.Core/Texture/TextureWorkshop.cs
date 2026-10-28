@@ -46,34 +46,6 @@ public sealed record TextureSource(
     /// <summary>Gambar mask terpisah untuk key Alpha= di metadata.</summary>
     string? AlphaMaskPath = null);
 
-/// <summary>Pandangan baca-saja atas berkas di folder tujuan (folder edit aset atau folder ekspor).</summary>
-public interface IAssetFileView
-{
-    byte[]? Read(string relativePath);
-}
-
-public sealed class FolderFileView(string root) : IAssetFileView
-{
-    public byte[]? Read(string relativePath)
-    {
-        var p = SafePath.Combine(root, relativePath);
-        return File.Exists(p) ? File.ReadAllBytes(p) : null;
-    }
-}
-
-public sealed class DictionaryFileView(IReadOnlyDictionary<string, byte[]> files) : IAssetFileView
-{
-    public static DictionaryFileView Empty { get; } = new(new Dictionary<string, byte[]>());
-
-    public byte[]? Read(string relativePath)
-    {
-        var key = Normalize(relativePath);
-        return files.FirstOrDefault(kv => Normalize(kv.Key).Equals(key, StringComparison.OrdinalIgnoreCase)).Value;
-    }
-
-    private static string Normalize(string p) => p.Replace('\\', '/');
-}
-
 public enum CollisionKind
 {
     /// <summary>Dua sumber menghasilkan nama output yang sama (AC-18).</summary>
@@ -202,7 +174,7 @@ public sealed class TextureWorkshop(string stagingRoot)
             }
             // Metadata lama bukan benturan: isinya diperbarui dengan key lain dipertahankan.
             foreach (var p in new[] { d.Image, d.Mask }.OfType<string>())
-                if (existing.Read(p) is not null)
+                if (existing.Hash(p) is not null)
                     collisions.Add(new NameCollision(p, CollisionKind.ExistingFile,
                         $"'{p}' sudah ada di tujuan. Pilih ganti (dengan backup), ganti nama, atau lewati."));
             return new TextureTarget(d.Index, d.Source, d.Image, d.Meta, d.Mask, collisions);
@@ -345,8 +317,7 @@ public sealed class TextureWorkshop(string stagingRoot)
         if (!back.Ok) return (null, $"Verifikasi baca ulang gagal: {back.Error}");
         var err = Compare(image, back.Image!, withAlpha);
         if (err is not null) return (null, $"Verifikasi baca ulang gagal: {err}");
-        var current = existing.Read(rel);
-        return (new StagedFile(rel, File.ReadAllBytes(path), current is null ? null : Hashing.Sha256(current), path, summary), "");
+        return (new StagedFile(rel, File.ReadAllBytes(path), existing.Hash(rel), path, summary), "");
     }
 
     internal static string? Compare(RasterImage expected, RasterImage actual, bool alphaKept)
@@ -399,7 +370,7 @@ public sealed class TextureWorkshop(string stagingRoot)
             // Alpha lama dipertahankan sampai pengguna memilih penggantian yang jelas (PRD 13.4 langkah 5).
             var dir = Path.GetDirectoryName(t.MetadataPath.Replace('\\', '/'))?.Replace('\\', '/');
             var rel = string.IsNullOrEmpty(dir) ? keptAlpha : dir + "/" + keptAlpha;
-            notes.Add(existing.Read(rel) is null
+            notes.Add(existing.Hash(rel) is null
                 ? $"Metadata lama memuat Alpha={keptAlpha}, tetapi berkas itu tidak ditemukan. Periksa sebelum menerapkan."
                 : $"Alpha={keptAlpha} dari metadata lama dipertahankan.");
         }
