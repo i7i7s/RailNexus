@@ -11,8 +11,28 @@ using RailNexus.Core.Tx;
 namespace RailNexus.Tests;
 
 /// <summary>Layanan koneksi palsu: memakai simulator, bukan Trainz (PRD 27).</summary>
+/// <summary>Indexer palsu: KIND diketahui dari kamus, pengindeksan menambah satu aset.</summary>
+internal sealed class FakeIndexer(LibraryIndex library, Dictionary<Kuid, string> kinds) : ILibraryIndexer
+{
+    public Task<IndexResult> IndexAsync(IReadOnlyList<string> categories, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        progress?.Report("Kategori uji: 1/1");
+        library.Upsert([new LibraryEntry(Kuid.Parse("<kuid:777:1>"), "Aset Baru Terindeks", "VE", "x", AssetState.Installed, false, false, false, false, DateTimeOffset.UtcNow)]);
+        return Task.FromResult(new IndexResult(true, "1 aset diperbarui di indeks.", 1));
+    }
+
+    public Task<OpResult<string>> ReadKindAsync(Kuid kuid, CancellationToken ct = default)
+    {
+        if (!kinds.TryGetValue(kuid, out var k)) return Task.FromResult(OpResult<string>.Unknown("Perintah 'printconfig' belum terverifikasi untuk build ini."));
+        library.SetKind(kuid, k);
+        return Task.FromResult(OpResult<string>.Ok(k));
+    }
+}
+
 internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string storeRoot, ConnectionCheck check) : IConnectionService
 {
+    public Dictionary<Kuid, string> Kinds { get; } = new();
+
     public int Opened { get; private set; }
 
     public IReadOnlyList<InstallationCandidate> FindInstallations() =>
@@ -34,8 +54,12 @@ internal sealed class FakeConnections(SimulatedTrainz sim, string dbPath, string
         Opened++;
         var store = new TxStore(storeRoot);
         var runner = c.State == ConnectionState.Connected ? new TransactionRunner(sim, store) : null;
-        return new AppSession("TRS19 simulasi — trs19", new LibraryIndex(dbPath, "trs19"), new EditFolderAssetReader(sim), store, runner,
-            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder, sim);
+        var library = new LibraryIndex(dbPath, "trs19");
+        return new AppSession("TRS19 simulasi — trs19", library, new EditFolderAssetReader(sim), store, runner,
+            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder, sim)
+        {
+            Indexer = new FakeIndexer(library, Kinds),
+        };
     }
 }
 
@@ -85,9 +109,13 @@ public sealed class AppViewModelTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch (IOException) { }
     }
 
+    private readonly Dictionary<Kuid, string> _kinds = new();
+
     private async Task<MainViewModel> ConnectedShell(ConnectionCheck? check = null)
     {
-        var main = new MainViewModel(new FakeConnections(_sim, DbPath, Path.Combine(_root, "tx"), check ?? Connected));
+        var connections = new FakeConnections(_sim, DbPath, Path.Combine(_root, "tx"), check ?? Connected);
+        foreach (var (k, v) in _kinds) connections.Kinds[k] = v;
+        var main = new MainViewModel(connections);
         var connect = Assert.IsType<ConnectViewModel>(main.CurrentPage);
         await connect.CheckCommand.ExecuteAsync();
         connect.ConnectCommand.Execute(null);
@@ -874,5 +902,50 @@ public sealed class AppViewModelTests : IDisposable
         await main.Loading;
         var repair = Assert.IsType<RepairViewModel>(main.CurrentPage);
         Assert.Contains(repair.Cards, c => c.Class.Text == "Config/berkas tidak konsisten" && c.Title.StartsWith("Config tidak dapat dibaca", StringComparison.Ordinal));
+    }
+
+    // ------------------------------------------------------------- pengindeksan dan KIND
+
+    [Fact]
+    public async Task Library_index_command_refreshes_results()
+    {
+        var main = await ConnectedShell();
+        var lib = (LibraryViewModel)main.CurrentPage;
+        Assert.True(lib.CanIndex);
+        await lib.IndexCommand.ExecuteAsync();
+        Assert.Equal("1 aset diperbarui di indeks.", lib.IndexStatus);
+        Assert.Contains(lib.Results, r => r.Name == "Aset Baru Terindeks");
+    }
+
+    [Fact]
+    public async Task Reading_candidate_kind_makes_bogie_selectable_LIB01()
+    {
+        _kinds[Bogey] = "bogey";
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var replace = await OpenRole(main, "Ganti bogie");
+        replace.SearchText = "bogie";
+        Assert.False(replace.Candidates.Single().IsSelectable);
+        Assert.True(replace.ReadKindsCommand.CanExecute(null));
+
+        await replace.ReadKindsCommand.ExecuteAsync();
+        Assert.Equal("Jenis 1 kandidat terbaca.", replace.KindStatus);
+        var c = replace.Candidates.Single();
+        Assert.True(c.IsSelectable);
+        Assert.Equal("Cocok", c.Verdict.Text);
+    }
+
+    [Fact]
+    public async Task Wrong_kind_is_rejected_with_reason_AC04()
+    {
+        _kinds[Bogey] = "scenery";
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var replace = await OpenRole(main, "Ganti bogie");
+        replace.SearchText = "bogie";
+        await replace.ReadKindsCommand.ExecuteAsync();
+        var c = replace.Candidates.Single();
+        Assert.False(c.IsSelectable);
+        Assert.StartsWith("Jenis berbeda: 'scenery'", c.Reason);
     }
 }

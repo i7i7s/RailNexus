@@ -48,6 +48,11 @@
                      AutomationProperties.Name="Cari pengganti berdasarkan nama atau KUID" />
             <TextBlock DockPanel.Dock="Top" Text="{Binding EmptyHint}" Style="{StaticResource Text.Caption}" Margin="0,8,0,0"
                        Visibility="{Binding EmptyHint, Converter={StaticResource VisibleWhen}}" />
+            <DockPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding Candidates.Count, Converter={StaticResource VisibleWhen}}">
+                <Button DockPanel.Dock="Left" Style="{StaticResource Button.Small}" Content="Baca jenis kandidat" Command="{Binding ReadKindsCommand}"
+                        ToolTip="Membaca KIND dari config kandidat agar kecocokan dapat dipastikan" />
+                <TextBlock Text="{Binding KindStatus}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="8,0,0,0" />
+            </DockPanel>
             <ListBox Style="{StaticResource List}" Margin="0,8,0,0" ItemsSource="{Binding Candidates}" SelectedItem="{Binding SelectedCandidate}"
                      AutomationProperties.Name="Kandidat pengganti"
                      Visibility="{Binding Candidates.Count, Converter={StaticResource VisibleWhen}}">

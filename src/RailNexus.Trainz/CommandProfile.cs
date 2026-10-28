@@ -16,10 +16,14 @@ public enum TrainzOp
     ImportFolder,
     /// <summary>'filterbystatus I &lt;KUID&gt; [..]' — status banyak aset terpasang dalam satu panggilan.</summary>
     StatusBatch,
+    /// <summary>'searchbycategory &lt;kategori&gt;' — KUID aset lokal per kategori (untuk indeks pustaka).</summary>
+    SearchByCategory,
+    /// <summary>'printconfig &lt;KUID&gt;' — teks config yang sudah dinormalkan Trainz (baca saja).</summary>
+    PrintConfig,
 }
 
 public sealed record CommandSpec(
-    /// <summary>Argumen; placeholder {kuid} dan {path} diganti saat dijalankan.</summary>
+    /// <summary>Argumen; placeholder {kuid}, {path}, dan {arg} diganti saat dijalankan.</summary>
     IReadOnlyList<string> Args,
     /// <summary>
     /// true hanya setelah sintaks dan bentuk keluarannya dibuktikan dengan output nyata

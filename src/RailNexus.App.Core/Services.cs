@@ -127,6 +127,8 @@ public sealed class AppSession(
     public string? InstallationFolder => installationFolder;
     /// <summary>Untuk operasi baca seperti validasi; penulisan selalu lewat <see cref="Runner"/>.</summary>
     public ITrainzAdapter? Adapter => adapter;
+    /// <summary>Pengisian indeks dan pembacaan KIND; null bila tidak tersedia pada sambungan ini.</summary>
+    public ILibraryIndexer? Indexer { get; init; }
 
     /// <summary>Keadaan target menurut indeks profil ini (revisi apa pun).</summary>
     public RailNexus.Core.Dependencies.TargetState TargetState(Kuid kuid) =>

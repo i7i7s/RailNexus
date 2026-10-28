@@ -40,6 +40,8 @@ public sealed partial class TrainzConnectionService(AppSettings settings, string
         TrainzOp.Validate => "Validasi",
         TrainzOp.ImportFolder => "Impor folder",
         TrainzOp.StatusBatch => "Status banyak aset",
+        TrainzOp.SearchByCategory => "Cari aset per kategori",
+        TrainzOp.PrintConfig => "Baca config (printconfig)",
         _ => op.ToString(),
     };
 
@@ -115,6 +117,9 @@ public sealed partial class TrainzConnectionService(AppSettings settings, string
         var library = new LibraryIndex(Path.Combine(dataRoot, "library.db"), profile.Id);
         var runner = check.State == ConnectionState.Connected ? new TransactionRunner(adapter, store) : null;
         return new AppSession($"{installation.Name} — {profile.Id}", library, new EditFolderAssetReader(adapter), store, runner,
-            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder, adapter);
+            runner is null ? "Build ini belum diuji; perubahan dinonaktifkan sampai profilnya lolos uji." : null, installation.Folder, adapter)
+        {
+            Indexer = new TrainzLibraryIndexer(adapter, library),
+        };
     }
 }

@@ -452,16 +452,7 @@ async Task<int> ParseCheck()
     return 0;
 }
 
-static string? ExtractPrintConfig(RawOutput raw)
-{
-    var lines = TuResponse.Parse(raw).Lines.Where(x => x.Kind == LineKind.Log).Select(x => x.Message).ToList();
-    var start = lines.FindIndex(x => x.StartsWith("+ Start of", StringComparison.Ordinal));
-    var end = lines.FindIndex(x => x.StartsWith("+ End of", StringComparison.Ordinal));
-    if (start < 0 || end <= start) return null;
-    var body = lines.Skip(start + 1).Take(end - start - 1).ToList();
-    if (body.Count > 0 && body[0].Trim('﻿', '?', ' ').Length == 0) body.RemoveAt(0);
-    return string.Join("\n", body) + "\n";
-}
+static string? ExtractPrintConfig(RawOutput raw) => TrainzOutputParsers.PrintConfig(raw);
 
 async Task<int> Undo()
 {

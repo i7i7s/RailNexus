@@ -50,6 +50,7 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
         Role = role;
         Footer = footer;
         AddCommand = new RelayCommand(Add, () => AddDisabledReason is null);
+        ReadKindsCommand = new AsyncCommand(ReadKindsAsync, () => _session.Indexer is not null && UnknownKind.Any());
         if (workspace.Document is { } doc)
             foreach (var s in role.Locate(doc)) Slots.Add(new SlotItem(s, NameOf(s.Current)));
         SelectedSlot = Slots.FirstOrDefault();
@@ -65,6 +66,13 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
     public ObservableCollection<SlotItem> Slots { get; } = new();
     public ObservableCollection<CandidateItem> Candidates { get; } = new();
     public RelayCommand AddCommand { get; }
+    public AsyncCommand ReadKindsCommand { get; }
+    private string? _kindStatus;
+    public string? KindStatus { get => _kindStatus; private set => Set(ref _kindStatus, value); }
+
+    /// <summary>Kandidat yang ditolak hanya karena KIND belum terbaca.</summary>
+    private IEnumerable<CandidateItem> UnknownKind =>
+        Role.CandidateKinds.Count == 0 ? [] : Candidates.Where(c => c.Entry.Kind is null && c.Entry.State == AssetState.Installed);
     public string? Error { get => _error; private set => Set(ref _error, value); }
 
     public SlotItem? SelectedSlot
@@ -117,6 +125,23 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
             }
         }
         OnPropertyChanged(nameof(EmptyHint));
+        ReadKindsCommand?.Refresh();
+    }
+
+    /// <summary>Membaca KIND kandidat dari config-nya (printconfig) lalu menilai ulang (LIB-01).</summary>
+    private async Task ReadKindsAsync()
+    {
+        if (_session.Indexer is not { } indexer) return;
+        var targets = UnknownKind.Take(20).Select(c => c.Entry.Kuid).ToList();
+        var failed = new List<string>();
+        foreach (var k in targets)
+        {
+            var r = await indexer.ReadKindAsync(k);
+            if (!r.IsSuccess) failed.Add(r.Message);
+        }
+        KindStatus = failed.Count == 0 ? $"Jenis {targets.Count} kandidat terbaca."
+            : $"{targets.Count - failed.Count} terbaca, {failed.Count} belum: {failed.Distinct().First()}";
+        RefreshCandidates();
     }
 
     /// <summary>
@@ -125,9 +150,9 @@ public sealed class ReplaceViewModel : ObservableObject, IPage
     /// </summary>
     private CandidateCheck Evaluate(RoleSlot slot, LibraryEntry e)
     {
-        var record = new AssetRecord(e.Kuid, e.Name, "", e.State);
+        var record = new AssetRecord(e.Kuid, e.Name, e.Kind ?? "", e.State);
         var check = ModificationEngine.Evaluate(Role, slot, record);
-        if (Role.CandidateKinds.Count > 0 && check.Verdict == CandidateVerdict.Rejected && check.Reason.StartsWith("Jenis berbeda", StringComparison.Ordinal))
+        if (e.Kind is null && Role.CandidateKinds.Count > 0 && check.Verdict == CandidateVerdict.Rejected && check.Reason.StartsWith("Jenis berbeda", StringComparison.Ordinal))
             return check with { Reason = $"Jenis aset belum terbaca di indeks; kecocokan dengan {string.Join(" / ", Role.CandidateKinds)} belum dapat dipastikan." };
         return check;
     }
