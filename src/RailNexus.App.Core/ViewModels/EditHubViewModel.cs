@@ -32,12 +32,14 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     private readonly Action _back;
     private readonly Action? _openHistory;
     private readonly Action? _openEditor;
+    private readonly Action? _openTexture;
     private bool _loading;
     private string? _error;
 
     public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, Action<IRole> openRole, Action back,
-        Action? openHistory = null, Action? openEditor = null)
+        Action? openHistory = null, Action? openEditor = null, Action? openTexture = null)
     {
+        _openTexture = openTexture;
         _openHistory = openHistory;
         _openEditor = openEditor;
         _session = session;
@@ -102,8 +104,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         ]));
         Groups.Add(new TaskGroup("Tampilan, tekstur & model",
         [
-            new TaskCard("Tekstur & material", "Gambar → TGA + .texture.txt", NotYet,
-                "Mesin konversi tekstur sudah ada, tetapi panelnya belum tersedia di aplikasi."),
+            TextureCard(),
             new TaskCard("Lihat model", "Preview geometri dan material", new("P2", Tone.Mute),
                 "Renderer model belum tersedia (PRD 15, P2)."),
         ]));
@@ -114,6 +115,18 @@ public sealed class EditHubViewModel : ObservableObject, IPage
             EditorCard(doc),
             HistoryCard(),
         ]));
+    }
+
+    private TaskCard TextureCard()
+    {
+        if (_workspace.Snapshot is not { } snap)
+            return new TaskCard("Tekstur & material", "Gambar → TGA + .texture.txt", NotApplicable,
+                $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim());
+        var images = snap.Files.Count(f => RailNexus.Core.Texture.TextureInventory.IsImage(f.RelativePath));
+        var missing = RailNexus.Core.Texture.TextureInventory.Scan(snap, _workspace.Document)
+            .Count(f => f.Kind == RailNexus.Core.Texture.InventoryKind.ImageWithoutMetadata);
+        return new TaskCard("Tekstur & material", missing > 0 ? $"{images} gambar · {missing} tanpa metadata" : $"{images} gambar",
+            new("Terpandu", Tone.Info), null, _openTexture is null ? null : new RelayCommand(_openTexture));
     }
 
     private TaskCard EditorCard(ConfigDocument? doc) =>

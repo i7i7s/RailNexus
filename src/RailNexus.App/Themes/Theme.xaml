@@ -33,6 +33,17 @@
     <local:VisibleWhenConverter x:Key="VisibleWhen" />
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     <local:EnumIndexConverter x:Key="EnumIndex" />
+    <local:RasterToBitmapConverter x:Key="RasterToBitmap" />
+
+    <!-- Papan catur untuk menilai alpha (PRD 13.2 langkah 5). -->
+    <DrawingBrush x:Key="Brush.Checker" TileMode="Tile" Viewport="0,0,16,16" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#FFFFFF" Geometry="M0,0 H16 V16 H0Z" />
+                <GeometryDrawing Brush="#D9DDE3" Geometry="M0,0 H8 V8 H0Z M8,8 H16 V16 H8Z" />
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
 
     <!-- Tipografi -->
     <Style x:Key="Text.H1" TargetType="TextBlock">

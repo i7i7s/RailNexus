@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using RailNexus.Core.Texture;
 using RailNexus.App.Core;
 
 namespace RailNexus.App;
@@ -62,4 +64,26 @@ public sealed class EnumIndexConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is int i && parameter is Type t ? Enum.ToObject(t, i) : Binding.DoNothing;
+}
+
+/// <summary>RasterImage (RGBA, atas ke bawah) → BitmapSource BGRA untuk preview; tidak mengubah data sumber.</summary>
+public sealed class RasterToBitmapConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not RasterImage img) return null;
+        var bgra = new byte[img.Rgba.Length];
+        for (var i = 0; i < bgra.Length; i += 4)
+        {
+            bgra[i] = img.Rgba[i + 2];
+            bgra[i + 1] = img.Rgba[i + 1];
+            bgra[i + 2] = img.Rgba[i];
+            bgra[i + 3] = img.Rgba[i + 3];
+        }
+        var bmp = BitmapSource.Create(img.Width, img.Height, 96, 96, PixelFormats.Bgra32, null, bgra, img.Width * 4);
+        bmp.Freeze();
+        return bmp;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }

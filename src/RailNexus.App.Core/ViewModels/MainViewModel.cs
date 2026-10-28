@@ -29,7 +29,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             new NavItem("pustaka", "Pustaka", "Sambungkan ke Trainz terlebih dahulu."),
             new NavItem("dependency", "Dependency", NotYet),
             new NavItem("perbaikan", "Perbaikan", NotYet),
-            new NavItem("workshop", "Workshop", NotYet),
+            new NavItem("workshop", "Workshop", null),
             new NavItem("riwayat", "Riwayat", "Sambungkan ke Trainz terlebih dahulu."),
             new NavItem("pengaturan", "Pengaturan", null),
         ];
@@ -76,7 +76,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
-    public bool ShowDraftPanel => ActiveAsset is not null && CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel;
+    public bool ShowDraftPanel => ActiveAsset is not null &&
+        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or TextureViewModel { IsAssetMode: true };
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
         : _session.Runner is null ? new("Terhubung · hanya baca", Tone.Warn)
@@ -123,6 +124,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             case "pustaka":
                 ShowLibrary();
+                break;
+            case "workshop":
+                ActiveAsset = null;
+                CurrentPage = new WorkshopViewModel(OpenTextureFolder);
+                MarkActive("workshop");
                 break;
             case "riwayat" when _session is not null:
                 ActiveAsset = null;
@@ -178,8 +184,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         });
     }
 
+    private string StagingRoot => Path.Combine(_connections.DataRoot, "staging");
+
     private EditHubViewModel NewHub(AssetWorkspace ws) =>
-        new(_session!, ws, Draft!.Footer, OpenRole, ShowLibrary, () => OpenAssetHistory(ws), () => OpenEditor(ws));
+        new(_session!, ws, Draft!.Footer, OpenRole, ShowLibrary, () => OpenAssetHistory(ws), () => OpenEditor(ws),
+            () => CurrentPage = new TextureViewModel(ws, StagingRoot, () => BackToHub(ws)));
+
+    private void OpenTextureFolder()
+    {
+        ActiveAsset = null;
+        CurrentPage = new TextureViewModel(null, StagingRoot, () => Navigate(Nav.Single(n => n.Key == "workshop")));
+        MarkActive("workshop");
+    }
 
     private void OpenEditor(AssetWorkspace ws)
     {

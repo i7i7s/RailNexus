@@ -5,6 +5,7 @@ using RailNexus.Core;
 using RailNexus.Core.Config;
 using RailNexus.Core.Library;
 using RailNexus.Core.Roles;
+using RailNexus.Core.Texture;
 using RailNexus.Core.Tx;
 
 namespace RailNexus.Tests;
@@ -219,9 +220,9 @@ public sealed class AppViewModelTests : IDisposable
         Assert.Equal("Terpandu", cards["Ganti klakson"].Status.Text);
         Assert.Equal("track-sound · 3 target di aturan", cards["Suara roda-rel"].Caption);
         Assert.Equal("bogeys · 2 slot", cards["Ganti bogie"].Caption);
+        Assert.True(cards["Tekstur & material"].IsAvailable);
         // Tugas yang belum ada: nonaktif dengan alasan, bukan disembunyikan.
-        Assert.False(cards["Tekstur & material"].IsAvailable);
-        Assert.False(string.IsNullOrWhiteSpace(cards["Tekstur & material"].Reason));
+        Assert.False(cards["Lihat model"].IsAvailable);
         Assert.All(cards.Values.Where(c => !c.IsAvailable), c => Assert.False(string.IsNullOrWhiteSpace(c.Reason)));
     }
 
@@ -639,5 +640,140 @@ public sealed class AppViewModelTests : IDisposable
         Assert.NotEmpty(editor.Problems);
         Assert.StartsWith("Masalah · ", editor.ProblemsLabel);
         Assert.Contains(editor.Lines, l => l.Issue is not null);
+    }
+
+    // ------------------------------------------------------------- UI-14/15
+
+    private string ImageFile(string name, byte[] bytes)
+    {
+        var dir = Path.Combine(_root, "gambar");
+        Directory.CreateDirectory(dir);
+        var p = Path.Combine(dir, name);
+        File.WriteAllBytes(p, bytes);
+        return p;
+    }
+
+    private static TextureViewModel OpenTexture(MainViewModel main)
+    {
+        var hub = (EditHubViewModel)main.CurrentPage;
+        hub.Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Tekstur & material").Open!.Execute(null);
+        return Assert.IsType<TextureViewModel>(main.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Texture_panel_adds_converted_files_to_draft_and_applies()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var tex = OpenTexture(main);
+        Assert.True(tex.IsAssetMode);
+        Assert.True(main.ShowDraftPanel);
+        Assert.Equal("Konversi ke draft", tex.Footer.Label);
+        Assert.Equal("Tambahkan gambar terlebih dahulu.", tex.PrimaryDisabledReason);
+
+        tex.AddFiles([ImageFile("badan.png", ImageFixtures.PatternPngRgba()), ImageFile("badan_normal.png", ImageFixtures.PatternPngRgb())]);
+        var body = tex.Items[0];
+        Assert.StartsWith("PNG RGBA", body.Format);
+        Assert.Equal("4 × 3", body.Size);
+        Assert.Equal("Memiliki alpha", body.AlphaLabel.Text);
+        Assert.Equal(TextureRole.Color, body.Role);
+        Assert.Equal(TextureRole.Normal, tex.Items[1].Role); // tebakan nama hanya saran
+        tex.TargetDirectory = "textures";
+        Assert.True(tex.Footer.IsEnabled);
+
+        tex.PrimaryCommand.Execute(null);
+        Assert.Equal("Siap · 32-bit, dibaca ulang cocok", body.ResultStatus!.Text);
+        Assert.Equal("4 perubahan siap", main.Draft!.CountLabel);
+
+        main.CurrentPage.Back();
+        await main.Loading;
+        await main.Draft.ApplyCommand.ExecuteAsync();
+        await main.Loading;
+        Assert.Equal("Berhasil", main.Draft.Outcome!.Status.Text);
+        Assert.NotNull(_sim.InstalledFile(Loco, Path.Combine("textures", "badan.tga")));
+        Assert.Equal("Primary=badan.tga\r\nTile=st\r\n",
+            Encoding.UTF8.GetString(_sim.InstalledFile(Loco, Path.Combine("textures", "badan.texture.txt"))!));
+        Assert.Equal(_locoConfig, _sim.InstalledFile(Loco, "config.txt")); // tekstur saja tidak menyentuh config
+    }
+
+    [Fact]
+    public async Task Texture_panel_blocks_on_name_collision_until_resolved_AC18()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var tex = OpenTexture(main);
+        tex.AddFiles([ImageFile("a.png", ImageFixtures.PatternPngRgb())]);
+        var other = Path.Combine(_root, "lain");
+        Directory.CreateDirectory(other);
+        File.WriteAllBytes(Path.Combine(other, "a.png"), ImageFixtures.PatternPngRgba());
+        tex.AddFiles([Path.Combine(other, "a.png")]);
+
+        Assert.All(tex.Items, i => Assert.NotNull(i.CollisionText));
+        Assert.Equal("Selesaikan benturan nama sebelum melanjutkan.", tex.PrimaryDisabledReason);
+        Assert.False(tex.Footer.IsEnabled);
+
+        tex.Items[1].OutputName = "a_kedua";
+        Assert.All(tex.Items, i => Assert.Null(i.CollisionText));
+        Assert.True(tex.Footer.IsEnabled);
+    }
+
+    [Fact]
+    public async Task Texture_inventory_finds_images_without_metadata_and_creates_it()
+    {
+        var thumb = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0 };
+        _sim.Install(Wagon, new()
+        {
+            ["config.txt"] = Encoding.UTF8.GetBytes("kuid <kuid:999001:1300>\r\nthumbnails\r\n{\r\n  0\r\n  {\r\n    image \"thumb.jpg\"\r\n  }\r\n}\r\n"),
+            ["thumb.jpg"] = thumb,
+            ["body.tga"] = TgaCodec.Encode(new RasterImage(1, 1, [1, 2, 3, 255], false), false),
+            ["roof.texture.txt"] = Encoding.UTF8.GetBytes("Primary=roof.tga\r\n"),
+        });
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Wagon));
+        var card = ((EditHubViewModel)main.CurrentPage).Groups.SelectMany(g => g.Cards).Single(c => c.Title == "Tekstur & material");
+        Assert.Equal("2 gambar · 1 tanpa metadata", card.Caption);
+
+        var tex = OpenTexture(main);
+        var missingMeta = Assert.Single(tex.Inventory, i => i.Finding.Kind == InventoryKind.ImageWithoutMetadata);
+        Assert.Equal("body.tga", missingMeta.Path); // thumbnail dari config tidak dihitung
+        Assert.Contains(tex.Inventory, i => i.Finding.Kind == InventoryKind.MissingTarget && i.Path == "roof.texture.txt");
+        Assert.True(missingMeta.IsSelected);
+
+        tex.MetadataCommand.Execute(null);
+        Assert.Equal("1 perubahan siap", main.Draft!.CountLabel);
+        main.CurrentPage.Back();
+        await main.Loading;
+        await main.Draft.ApplyCommand.ExecuteAsync();
+        await main.Loading;
+        Assert.Equal("Primary=body.tga\r\nTile=st\r\n", Encoding.UTF8.GetString(_sim.InstalledFile(Wagon, "body.texture.txt")!));
+    }
+
+    [Fact]
+    public void Texture_folder_mode_works_without_trainz_AC25()
+    {
+        var main = new MainViewModel(new FakeConnections(_sim, DbPath, Path.Combine(_root, "tx"), Connected));
+        Assert.True(main.Nav.Single(n => n.Key == "workshop").IsEnabled); // sebelum tersambung
+        main.NavigateCommand.Execute(main.Nav.Single(n => n.Key == "workshop"));
+        var workshop = Assert.IsType<WorkshopViewModel>(main.CurrentPage);
+        Assert.Equal(9, workshop.Modules.Count);
+        Assert.Contains(workshop.Modules, m => m.Utility == "Images2TGA" && m.Status.Tone == Tone.Ok);
+
+        workshop.OpenTextureFolderCommand.Execute(null);
+        var tex = Assert.IsType<TextureViewModel>(main.CurrentPage);
+        Assert.False(tex.IsAssetMode);
+        Assert.False(main.ShowDraftPanel);
+        tex.AddFiles([ImageFile("x.png", ImageFixtures.PatternPngRgb())]);
+        Assert.Equal("Pilih folder tujuan.", tex.PrimaryDisabledReason);
+        var outDir = Path.Combine(_root, "keluaran");
+        Directory.CreateDirectory(outDir);
+        tex.ExportFolder = outDir;
+        tex.PrimaryCommand.Execute(null);
+        Assert.Contains("Belum terpasang di Trainz", tex.Message);
+        Assert.True(File.Exists(Path.Combine(outDir, "x.tga")));
+
+        // Menjalankan lagi: berkas kini ada → benturan sampai pengguna memilih.
+        Assert.NotNull(tex.Items[0].CollisionText);
+        tex.Items[0].Collision = CollisionChoice.Replace;
+        Assert.Null(tex.PrimaryDisabledReason);
     }
 }
