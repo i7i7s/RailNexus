@@ -53,6 +53,9 @@
             <DataTemplate DataType="{x:Type vm:CargoViewModel}">
                 <views:CargoView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:BatchViewModel}">
+                <views:BatchView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DraftPanelViewModel}">
                 <views:DraftPanelView />
             </DataTemplate>

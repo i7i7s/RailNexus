@@ -137,7 +137,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
             case "workshop":
                 ActiveAsset = null;
-                CurrentPage = new WorkshopViewModel(OpenTextureFolder);
+                CurrentPage = new WorkshopViewModel(OpenTextureFolder, _session is null ? null : () =>
+                    CurrentPage = new BatchViewModel(_session, Path.Combine(_connections.DataRoot, "presets")));
                 MarkActive("workshop");
                 break;
             case "dependency" when _session is not null && _lastAsset is { } last:

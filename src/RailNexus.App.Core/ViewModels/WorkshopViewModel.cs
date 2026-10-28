@@ -6,9 +6,10 @@ namespace RailNexus.App.Core.ViewModels;
 /// </summary>
 public sealed class WorkshopViewModel : ObservableObject, IPage
 {
-    public WorkshopViewModel(Action openTextureFolder)
+    public WorkshopViewModel(Action openTextureFolder, Action? openBatch = null)
     {
         OpenTextureFolderCommand = new RelayCommand(openTextureFolder);
+        OpenBatchCommand = new RelayCommand(() => openBatch?.Invoke(), () => openBatch is not null);
         Footer = new FooterAction("Buka Workshop Tekstur", OpenTextureFolderCommand,
             () => "Mode folder: konversi gambar dan metadata tanpa Trainz.");
     }
@@ -20,6 +21,8 @@ public sealed class WorkshopViewModel : ObservableObject, IPage
 
     public IReadOnlyList<ModuleInfo> Modules => ModuleCatalog.All;
     public RelayCommand OpenTextureFolderCommand { get; }
+    public RelayCommand OpenBatchCommand { get; }
+    public string BatchHint => OpenBatchCommand.CanExecute(null) ? "Ganti komponen yang sama pada banyak aset sekaligus." : "Sambungkan ke Trainz untuk memakai batch.";
 
     public string Intro =>
         "Semua modul berbagi aset aktif, draft, backup, dan riwayat yang sama. Kolom kebutuhan menyebut utilitas lama " +

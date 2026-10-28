@@ -1042,4 +1042,48 @@ public sealed class AppViewModelTests : IDisposable
         Assert.Contains("Penggantian tetap dapat dilakukan", replace.PreviewStatus);
         Assert.True(replace.AddCommand.CanExecute(null));
     }
+
+    // ------------------------------------------------------------- UI-22
+
+    [Fact]
+    public async Task Batch_page_previews_runs_and_saves_presets()
+    {
+        var main = await ConnectedShell();
+        main.NavigateCommand.Execute(main.Nav.Single(n => n.Key == "workshop"));
+        var workshop = (WorkshopViewModel)main.CurrentPage;
+        workshop.OpenBatchCommand.Execute(null);
+        var batch = Assert.IsType<BatchViewModel>(main.CurrentPage);
+        Assert.Equal("Pilih minimal satu aset.", batch.PreviewDisabledReason);
+
+        batch.Assets.Single(a => a.Name == "Lokomotif Diesel DX-200").IsSelected = true;
+        batch.Assets.Single(a => a.Name == "Gerbong Barang GB-40").IsSelected = true;
+        batch.From = "<kuid:999002:3101>";
+        batch.To = "<kuid:999002:3103>";
+        Assert.Null(batch.PreviewDisabledReason);
+        Assert.Equal("Tinjau rencana terlebih dahulu.", batch.RunDisabledReason);
+
+        await batch.PreviewCommand.ExecuteAsync();
+        Assert.Equal("Siap 1 · perlu pilihan 0 · dilewati 1", batch.PlanSummary);
+        Assert.True(batch.Footer.IsEnabled);
+
+        // Mengubah pilihan membuat rencana kedaluwarsa.
+        batch.To = "<kuid:999002:3104>";
+        Assert.Equal("Tinjau rencana terlebih dahulu.", batch.RunDisabledReason);
+        await batch.PreviewCommand.ExecuteAsync();
+        Assert.Equal("Siap 0 · perlu pilihan 1 · dilewati 1", batch.PlanSummary); // pengganti faulty
+
+        batch.To = "<kuid:999002:3103>";
+        await batch.PreviewCommand.ExecuteAsync();
+        await batch.RunCommand.ExecuteAsync();
+        Assert.StartsWith("1 aset berhasil", batch.Message);
+        Assert.Contains(batch.Rows, r => r.Status.Text == "Berhasil" && r.Detail.Contains("Riwayat"));
+        Assert.Contains("<kuid:999002:3103>", Encoding.UTF8.GetString(_sim.InstalledFile(Loco, "config.txt")!));
+
+        batch.PresetName = "Ganti KL-2 ke KL-3";
+        batch.SavePresetCommand.Execute(null);
+        Assert.Contains("Ganti KL-2 ke KL-3", batch.Presets);
+        batch.From = "";
+        batch.LoadPresetCommand.Execute("Ganti KL-2 ke KL-3");
+        Assert.Equal("<kuid:999002:3101>", batch.From);
+    }
 }
