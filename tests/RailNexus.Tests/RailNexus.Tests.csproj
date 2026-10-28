@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\RailNexus.Core\RailNexus.Core.csproj" />
     <ProjectReference Include="..\..\src\RailNexus.Trainz\RailNexus.Trainz.csproj" />
+    <ProjectReference Include="..\..\src\RailNexus.App.Core\RailNexus.App.Core.csproj" />
   </ItemGroup>
 
 </Project>

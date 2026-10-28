@@ -1,0 +1,180 @@
+using System.Text.Json;
+using RailNexus.Core;
+using RailNexus.Core.Config;
+using RailNexus.Core.Library;
+using RailNexus.Core.Roles;
+using RailNexus.Core.Tx;
+
+namespace RailNexus.App.Core;
+
+/// <summary>
+/// Pengaturan aplikasi yang disimpan per pengguna. Penulisan aset tetap dibatasi ke KUID aset uji
+/// sampai profil peran lolos uji integrasi pada Trainz asli (docs/tahap0.md).
+/// </summary>
+public sealed class AppSettings
+{
+    public string? TrainzFolder { get; set; }
+    /// <summary>KUID aset uji yang boleh dibuka untuk diedit dan ditulis.</summary>
+    public List<string> WritableTestKuids { get; set; } = [];
+
+    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+
+    public static AppSettings Load(string path)
+    {
+        if (!File.Exists(path)) return new AppSettings();
+        try { return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), Json) ?? new AppSettings(); }
+        catch (JsonException) { return new AppSettings(); }
+    }
+
+    public void Save(string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        File.WriteAllText(path, JsonSerializer.Serialize(this, Json));
+    }
+
+    public IReadOnlySet<(int UserId, int ContentId)> WritableSet() =>
+        WritableTestKuids.Select(s => Kuid.TryParse(s, out var k) ? (k.UserId, k.ContentId) : ((int, int)?)null)
+            .OfType<(int, int)>().ToHashSet();
+}
+
+public sealed record InstallationCandidate(string Name, string Folder, bool ToolFound);
+
+public enum ConnectionState
+{
+    NotChecked,
+    /// <summary>Build teruji: dapat membaca dan menulis aset yang diizinkan.</summary>
+    Connected,
+    /// <summary>Terhubung pada build yang belum diuji: hanya baca (PRD 7: mode terbatas).</summary>
+    ReadOnly,
+    TrainzNotRunning,
+    ToolNotFound,
+    Failed,
+}
+
+public sealed record CheckStep(bool Ok, string Title, string Detail);
+
+public sealed record ConnectionCheck(ConnectionState State, string Build, string Message, IReadOnlyList<CheckStep> Steps)
+{
+    public bool CanOpen => State is ConnectionState.Connected or ConnectionState.ReadOnly;
+}
+
+/// <summary>Membaca isi config.txt aset terpasang untuk menyusun pilihan dan draft.</summary>
+public interface IAssetConfigReader
+{
+    Task<OpResult<byte[]>> ReadConfigAsync(Kuid kuid, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Membaca config dengan pola yang sudah dibuktikan di Tahap 0: buka edit → baca berkas → revert.
+/// Byte yang dibaca sama dengan yang nanti diverifikasi transaksi (AC-10). Aset yang sedang terbuka
+/// di luar RailNexus tidak disentuh (AC-09).
+/// </summary>
+public sealed class EditFolderConfigReader(ITrainzAdapter adapter) : IAssetConfigReader
+{
+    public async Task<OpResult<byte[]>> ReadConfigAsync(Kuid kuid, CancellationToken ct = default)
+    {
+        var status = await adapter.GetStatusAsync(kuid, ct).ConfigureAwait(false);
+        if (!status.IsSuccess) return new OpResult<byte[]>(status.Outcome, null, status.Message);
+        if (status.Value!.State == AssetState.OpenForEdit)
+            return OpResult<byte[]>.Fail("Aset masih terbuka untuk diedit di luar RailNexus. Selesaikan atau batalkan dulu di Content Manager.");
+        if (status.Value.State == AssetState.Missing)
+            return OpResult<byte[]>.Fail("Aset tidak terpasang di profil ini.");
+
+        var edit = await adapter.BeginEditAsync(kuid, ct).ConfigureAwait(false);
+        if (!edit.IsSuccess) return new OpResult<byte[]>(edit.Outcome, null, $"Isi aset tidak dapat dibuka: {edit.Message}");
+        byte[]? bytes = null;
+        string error = "";
+        try
+        {
+            var path = SafePath.Combine(edit.Value!, "config.txt");
+            if (File.Exists(path)) bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+            else error = "config.txt tidak ditemukan di folder aset.";
+        }
+        catch (IOException ex) { error = $"config.txt tidak dapat dibaca: {ex.Message}"; }
+        finally
+        {
+            var rv = await adapter.RevertAsync(kuid, CancellationToken.None).ConfigureAwait(false);
+            if (!rv.IsSuccess)
+                error = (error.Length > 0 ? error + " " : "") +
+                        $"Aset dibuka untuk dibaca tetapi belum dapat ditutup kembali ({rv.Message}). Periksa di Content Manager.";
+        }
+        return bytes is not null && error.Length == 0 ? OpResult<byte[]>.Ok(bytes) : OpResult<byte[]>.Fail(error);
+    }
+}
+
+/// <summary>Satu sambungan aktif ke profil Trainz. Semua tindakan memakai profil ini (CONNECT-01, AC-21).</summary>
+public sealed class AppSession(
+    string profileLabel,
+    LibraryIndex library,
+    IAssetConfigReader configReader,
+    TransactionRunner? runner,
+    string? writeDisabledReason) : IDisposable
+{
+    public string ProfileLabel => profileLabel;
+    public LibraryIndex Library => library;
+    public IAssetConfigReader ConfigReader => configReader;
+    /// <summary>null bila penulisan tidak tersedia; alasannya di <see cref="WriteDisabledReason"/>.</summary>
+    public TransactionRunner? Runner => runner;
+    public string? WriteDisabledReason => runner is null ? writeDisabledReason ?? "Penulisan tidak tersedia." : null;
+
+    /// <summary>Draft dan config per aset; tetap ada saat pengguna berpindah modul (AC-37).</summary>
+    public Dictionary<Kuid, AssetWorkspace> Workspaces { get; } = new();
+
+    public AssetWorkspace Workspace(LibraryEntry entry)
+    {
+        if (!Workspaces.TryGetValue(entry.Kuid, out var ws)) Workspaces[entry.Kuid] = ws = new AssetWorkspace(entry);
+        else ws.Entry = entry;
+        return ws;
+    }
+
+    public void Dispose() => library.Dispose();
+}
+
+/// <summary>Aset aktif: catatan pustaka, config yang terakhir dibaca, dan draft bersama.</summary>
+public sealed class AssetWorkspace(LibraryEntry entry)
+{
+    public LibraryEntry Entry { get; set; } = entry;
+    public Draft Draft { get; } = new(entry.Kuid);
+    public byte[]? ConfigBytes { get; private set; }
+    public string? ConfigText { get; private set; }
+    public ConfigDocument? Document { get; private set; }
+    public string? ReadError { get; private set; }
+
+    public event EventHandler? Changed;
+
+    public void SetConfig(byte[] bytes)
+    {
+        ConfigBytes = bytes;
+        var bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+        ConfigText = new System.Text.UTF8Encoding(false).GetString(bytes, bom ? 3 : 0, bytes.Length - (bom ? 3 : 0));
+        Document = ConfigDocument.Parse(ConfigText);
+        ReadError = null;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetReadError(string message)
+    {
+        ReadError = message;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Isi config tidak lagi dianggap terkini (mis. setelah transaksi); dibaca ulang saat dibutuhkan.</summary>
+    public void InvalidateConfig()
+    {
+        ConfigBytes = null;
+        ConfigText = null;
+        Document = null;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void NotifyDraftChanged() => Changed?.Invoke(this, EventArgs.Empty);
+}
+
+/// <summary>Deteksi dan pemeriksaan instalasi; menghasilkan sesi bila koneksi dapat dipakai.</summary>
+public interface IConnectionService
+{
+    IReadOnlyList<InstallationCandidate> FindInstallations();
+    InstallationCandidate Inspect(string folder);
+    Task<ConnectionCheck> CheckAsync(InstallationCandidate installation, CancellationToken ct = default);
+    AppSession Open(InstallationCandidate installation, ConnectionCheck check);
+}
