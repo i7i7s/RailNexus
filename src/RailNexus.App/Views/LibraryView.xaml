@@ -1,0 +1,126 @@
+<UserControl x:Class="RailNexus.App.Views.LibraryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- UI-02 Pustaka -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="340" />
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Column="0" Margin="24,20">
+            <StackPanel DockPanel.Dock="Top">
+                <TextBlock Text="Cari aset" Style="{StaticResource Text.H3}" Margin="0,0,0,6" />
+                <TextBox x:Name="Search" MinHeight="44"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                         AutomationProperties.Name="Cari nama mod atau tempel KUID"
+                         AutomationProperties.HelpText="Contoh KUID: &lt;kuid:999001:1201&gt;" />
+                <TextBlock Style="{StaticResource Text.Caption}" Margin="0,4,0,12"
+                           Text="Nama mod, atau tempel KUID — mis. &lt;kuid:999001:1201&gt;" />
+
+                <WrapPanel>
+                    <TextBlock Text="Status" Style="{StaticResource Text.H3}" VerticalAlignment="Center" Margin="0,0,8,8" />
+                    <ItemsControl ItemsSource="{Binding Filters}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button x:Name="Chip" Style="{StaticResource Button.Chip}" Content="{Binding Label}"
+                                        Command="{Binding DataContext.SelectFilterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" />
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="Chip" Property="Background" Value="{StaticResource Brush.Text}" />
+                                        <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                                        <Setter TargetName="Chip" Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </WrapPanel>
+                <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
+            </StackPanel>
+
+            <!-- Keadaan kosong -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Card}"
+                    Visibility="{Binding EmptyTitle, Converter={StaticResource VisibleWhen}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource Text.H2}" />
+                    <TextBlock Text="{Binding EmptyHint}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                </StackPanel>
+            </Border>
+
+            <ListBox x:Name="Results" Style="{StaticResource List}" ItemsSource="{Binding Results}" SelectedItem="{Binding Selected}"
+                     MouseDoubleClick="Results_MouseDoubleClick" KeyDown="Results_KeyDown"
+                     AutomationProperties.Name="Hasil pencarian aset"
+                     Visibility="{Binding Results.Count, Converter={StaticResource VisibleWhen}}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Style="{StaticResource Text.Caption}">
+                                    <Run Text="{Binding Category, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding KuidText, Mode=OneWay}" FontFamily="{StaticResource Font.Mono}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <ContentControl Content="{Binding Status}" Focusable="False" />
+                                <ItemsControl ItemsSource="{Binding Extra}" Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <ContentControl Content="{Binding}" Margin="6,0,0,0" Focusable="False" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- Detail aset terpilih -->
+        <Border Grid.Column="1" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,0">
+            <Grid Margin="20">
+                <TextBlock Style="{StaticResource Text.Caption}" Text="Pilih aset untuk melihat ringkasannya. Tekan Enter atau klik dua kali untuk membuka."
+                           Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                <StackPanel Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}}">
+                    <TextBlock Text="{Binding Selected.Name}" Style="{StaticResource Text.H2}" />
+                    <ContentControl Content="{Binding Selected.Status}" Margin="0,8" Focusable="False" />
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Kategori" Style="{StaticResource Text.Caption}" Margin="0,0,0,6" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Selected.Category}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Text="KUID" Style="{StaticResource Text.Caption}" Margin="0,0,0,6" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Selected.KuidText}" Style="{StaticResource Text.Mono}" Foreground="{StaticResource Brush.Text}" />
+                        <TextBlock Grid.Row="2" Text="Pemeriksaan" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Selected.CheckedAt}" TextWrapping="Wrap" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="0,16,0,0"
+                               Text="Membuka aset membaca isi config-nya lewat Trainz, lalu menutupnya kembali. Tidak ada yang ditulis sampai Anda menekan Terapkan &amp; Selesai." />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

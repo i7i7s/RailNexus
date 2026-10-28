@@ -1,0 +1,62 @@
+<UserControl x:Class="RailNexus.App.Views.EditHubView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- UI-03 Pusat edit: "Mau edit apa?" -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24,20">
+            <TextBlock Text="Mau edit apa?" Style="{StaticResource Text.H1}" />
+            <TextBlock Text="{Binding Intro}" Style="{StaticResource Text.Caption}" Margin="0,4,0,16" />
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Membaca isi aset lewat Trainz…" />
+            </Border>
+
+            <!-- Isi aset tidak terbaca: alasan dan tindakan berikut. -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16" BorderBrush="#A3201A"
+                    Visibility="{Binding Error, Converter={StaticResource VisibleWhen}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Baca ulang" Command="{Binding RetryCommand}"
+                            VerticalAlignment="Top" />
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Text="Isi aset belum dapat dibaca" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Groups}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource Text.H3}" Margin="0,0,0,8" />
+                            <ItemsControl ItemsSource="{Binding Cards}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="3" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button x:Name="Task" Style="{StaticResource Button.Base}" Margin="0,0,10,10" Padding="14"
+                                                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top" MinHeight="76"
+                                                Command="{Binding Open}" IsEnabled="{Binding IsAvailable}"
+                                                ToolTip="{Binding Reason}" AutomationProperties.HelpText="{Binding Reason}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Caption}" Style="{StaticResource Text.Caption}" Margin="0,3,0,6" />
+                                                <ContentControl Content="{Binding Status}" Focusable="False" />
+                                                <!-- Alasan ditulis di kartu, tidak hanya di tooltip. -->
+                                                <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Caption}" Margin="0,6,0,0"
+                                                           Visibility="{Binding Reason, Converter={StaticResource VisibleWhen}}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,89 @@
+<UserControl x:Class="RailNexus.App.Views.DraftPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Ringkasan perubahan (panel kanan) untuk draft bersama aset aktif. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Rencana perubahan" Style="{StaticResource Text.H2}" VerticalAlignment="Center" />
+                <Border CornerRadius="12" Background="#E4ECFA" Padding="9,2" Margin="8,0,0,0">
+                    <TextBlock Text="Draft" FontSize="12" FontWeight="SemiBold" Foreground="#163F87" />
+                </Border>
+            </StackPanel>
+            <TextBlock Text="{Binding CountLabel}" Style="{StaticResource Text.Caption}" Margin="0,4,0,12" />
+
+            <TextBlock Style="{StaticResource Text.Caption}" Margin="0,0,0,12"
+                       Text="Pilih tugas di tengah. Setiap perubahan masuk ke sini dan baru ditulis saat Terapkan &amp; Selesai."
+                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+            <ItemsControl ItemsSource="{Binding Items}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Hapus" Command="{Binding RemoveCommand}"
+                                        VerticalAlignment="Top" AutomationProperties.Name="Hapus perubahan dari draft" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Module}" Style="{StaticResource Text.H3}" />
+                                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="{Binding PreviewError}" Foreground="#A3201A" TextWrapping="Wrap" Margin="0,4,0,8"
+                       Visibility="{Binding PreviewError, Converter={StaticResource VisibleWhen}}" />
+
+            <StackPanel Visibility="{Binding Handled.Count, Converter={StaticResource VisibleWhen}}" Margin="0,4,0,8">
+                <TextBlock Text="Diurus otomatis" Style="{StaticResource Text.H3}" Margin="0,0,0,4" />
+                <ItemsControl ItemsSource="{Binding Handled}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Style="{StaticResource Text.Caption}" Margin="0,0,0,2" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding Uncertain.Count, Converter={StaticResource VisibleWhen}}" Margin="0,4,0,8">
+                <TextBlock Text="Belum dapat dipastikan" Style="{StaticResource Text.H3}" Margin="0,0,0,4" />
+                <ItemsControl ItemsSource="{Binding Uncertain}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Foreground="#784C00" FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,2" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="{Binding Scope}" Style="{StaticResource Text.Caption}" />
+                <TextBlock Text="{Binding Backup}" Style="{StaticResource Text.Caption}" />
+                <TextBlock Text="{Binding AfterApply}" Style="{StaticResource Text.Caption}" />
+            </StackPanel>
+
+            <!-- Hasil penerapan terakhir -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0" Background="{StaticResource Brush.Side}"
+                    Visibility="{Binding Outcome, Converter={StaticResource VisibleWhen}}">
+                <StackPanel>
+                    <TextBlock Text="Hasil" Style="{StaticResource Text.H3}" />
+                    <ContentControl Content="{Binding Outcome.Status}" Margin="0,6" Focusable="False" />
+                    <TextBlock Text="{Binding Outcome.Message}" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Outcome.Details}" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource Text.Caption}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{StaticResource Text.Mono}" Margin="0,6,0,0"
+                               Visibility="{Binding Outcome.TxId, Converter={StaticResource VisibleWhen}}">
+                        <Run Text="Transaksi " /><Run Text="{Binding Outcome.TxId, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
