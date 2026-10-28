@@ -1,0 +1,15 @@
+{
+  "Name": "commit-test-asset",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:26:37.1991275+00:00",
+  "Arguments": [
+    "commit",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 377,
+  "StdOut": "; \u003CNULL\u003E : commit \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  ; \u003Ckuid:-2:117104311\u003E : CommitAssetFunction\r\n    ! \u003Ckuid:-2:117104311\u003E : TrainzAssetAccessorCached::OpenAssetFileForReading\u003E missing file: config.chump\r\n    \u002B \u003Ckuid:-2:117104311\u003E : \u003Ckuid:-2:117104311\u003E submitted\r\nOK (0 Errors, 1 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

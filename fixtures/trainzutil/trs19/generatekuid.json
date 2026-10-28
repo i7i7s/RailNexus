@@ -1,0 +1,14 @@
+{
+  "Name": "generatekuid",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:19:49.8296062+00:00",
+  "Arguments": [
+    "generateKUID"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 486,
+  "StdOut": "; \u003CNULL\u003E : generateKUID\r\n  \u002B \u003CNULL\u003E : \u003Ckuid:-2:117104311\u003E\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

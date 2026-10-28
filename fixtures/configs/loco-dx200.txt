@@ -1,0 +1,52 @@
+// Corpus sintetis RailNexus untuk uji parser dan peran. Bukan config pembuat mana pun.
+// Nama field di track-sound bersifat ilustratif; struktur container yang diuji.
+kuid                                    <kuid2:999001:1201:2>
+username                                "Lokomotif Diesel DX-200"
+kind                                    "traincar"
+trainz-build                            4.6
+engine                                  1
+hornsound                               <kuid:999002:3101>
+enginesound                             <kuid:999003:4100>
+description                             "Lokomotif diesel untuk lintas datar. Kurung { di string } tidak dihitung."
+custom-data-x                           "dipertahankan"   // komentar { juga tidak
+
+bogeys
+{
+  0
+  {
+    bogey                               <kuid:999005:6005>
+    reversed                            0
+  }
+
+  1
+  {
+    bogey                               <kuid:999005:6005>
+    reversed                            1
+  }
+}
+
+track-sound
+{
+  0
+  {
+    track                               <kuid:999007:100>
+    priority                            10
+    sound                               <kuid:999008:201>
+  }
+
+  1
+  {
+    priority                            100
+    sound                               <kuid:999008:200>
+  }
+}
+
+kuid-table
+{
+  horn                                  <kuid:999002:3101>
+  0                                     <kuid:999003:4100>
+  1                                     <kuid:999005:6005>
+  2                                     <kuid:999008:201>
+  3                                     <kuid:999008:200>
+  4                                     <kuid:999007:100>
+}

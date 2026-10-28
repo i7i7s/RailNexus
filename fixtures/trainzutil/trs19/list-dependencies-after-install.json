@@ -1,0 +1,15 @@
+{
+  "Name": "list-dependencies-after-install",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:24:21.2733197+00:00",
+  "Arguments": [
+    "list-dependencies",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 161,
+  "StdOut": "; \u003CNULL\u003E : list-dependencies \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

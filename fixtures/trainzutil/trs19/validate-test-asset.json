@@ -1,0 +1,15 @@
+{
+  "Name": "validate-test-asset",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:21:55.5369489+00:00",
+  "Arguments": [
+    "validate",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 200,
+  "StdOut": "; \u003CNULL\u003E : validate \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  - \u003Ckuid:-2:117104311\u003E : Unknown KUID: \u003Ckuid:-2:117104311\u003E\r\nOK (1 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

@@ -1,0 +1,15 @@
+{
+  "Name": "validate-after-commit",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:27:02.611756+00:00",
+  "Arguments": [
+    "validate",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 215,
+  "StdOut": "; \u003CNULL\u003E : validate \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  ; \u003Ckuid:-2:117104311\u003E : Validating \u003Ckuid:-2:117104311\u003E...\r\n    - \u003Ckuid:-2:117104311\u003E : VE45: The tag \u0027//\u0027 is not permitted within a container of type \u0027texture\u0027.\r\n    - \u003Ckuid:-2:117104311\u003E : VE45: The tag \u0027railnexus-penanda\u0027 is not permitted within a container of type \u0027texture\u0027.\r\n    - \u003Ckuid:-2:117104311\u003E : VE60: Required tag \u0027texture\u0027 was missing and has been set to default.\r\n    - \u003Ckuid:-2:117104311\u003E : VE62: Required container \u0027thumbnails\u0027 is missing.\r\n    - \u003Ckuid:-2:117104311\u003E : VE26: The tag \u0027texture\u0027 in container \u0027texture\u0027 is empty.\r\n    - \u003Ckuid:-2:117104311\u003E : VE28: The tag \u0027texture\u0027 in \u0027texture\u0027 must have an image file extension.\r\nOK (6 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

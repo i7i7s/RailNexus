@@ -1,0 +1,15 @@
+{
+  "Name": "status-after-commit",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:26:44.148534+00:00",
+  "Arguments": [
+    "status",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 1948,
+  "StdOut": "; \u003CNULL\u003E : status \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  \u002B \u003Ckuid:-2:117104311\u003E : abcdeFgILmopuXY : CMP;TX : RailNexus aset uji\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

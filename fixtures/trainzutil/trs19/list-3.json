@@ -1,0 +1,17 @@
+{
+  "Name": "list-3",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T08:34:44.0237636+00:00",
+  "Arguments": [
+    "list",
+    "\u003Ckuid:942117:23\u003E",
+    "\u003Ckuid2:68213:29018:2\u003E",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 122,
+  "StdOut": "; \u003CNULL\u003E : list \u0022\u003Ckuid:942117:23\u003E\u0022 \u0022\u003Ckuid2:68213:29018:2\u003E\u0022 \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  \u002B \u003Ckuid:942117:23\u003E : #0\r\n  \u002B \u003Ckuid2:68213:29018:2\u003E : #1\r\n  \u002B \u003Ckuid:-2:117104311\u003E : #2\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

@@ -1,0 +1,18 @@
+{
+  "Name": "filterbystatus-I-3",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T08:34:41.3292732+00:00",
+  "Arguments": [
+    "filterbystatus",
+    "I",
+    "\u003Ckuid:942117:23\u003E",
+    "\u003Ckuid2:68213:29018:2\u003E",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 126,
+  "StdOut": "; \u003CNULL\u003E : filterbystatus \u0022I\u0022 \u0022\u003Ckuid:942117:23\u003E\u0022 \u0022\u003Ckuid2:68213:29018:2\u003E\u0022 \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  \u002B \u003Ckuid:942117:23\u003E : aBcdefGIlmoPuXY : VE;LND;SY;SCEN : Chrysler 300 Black\r\n  \u002B \u003Ckuid2:68213:29018:2\u003E : aBcDefGIlmopuXY : VE;LND;SY;SCEN : Truck shotfirer\u0027s 02\r\n  \u002B \u003Ckuid:-2:117104311\u003E : abcdefgILmopuXY : CMP;TX : RailNexus aset uji\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

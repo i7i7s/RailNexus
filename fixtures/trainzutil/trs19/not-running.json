@@ -1,0 +1,12 @@
+{
+  "Name": "not-running",
+  "Build": "TRS19 (Steam), build belum terbaca karena Trainz tidak berjalan",
+  "CapturedAt": "2026-10-28T00:00:00+00:00",
+  "Arguments": [ "help" ],
+  "ExitCode": 1,
+  "TimedOut": false,
+  "DurationMs": 0,
+  "StdOut": "- Trainz is not running. Please start Trainz and try again.\r\n",
+  "StdErr": "",
+  "Note": "Ditangkap manual lewat PowerShell sebelum CLI ada; durasi tidak diukur. Stream dipastikan stdout oleh probe-help.json (tangkapan CLI, 95 ms)."
+}

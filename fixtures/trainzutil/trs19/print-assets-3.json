@@ -1,0 +1,17 @@
+{
+  "Name": "print-assets-3",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T08:34:38.6518217+00:00",
+  "Arguments": [
+    "print-assets",
+    "\u003Ckuid:942117:23\u003E",
+    "\u003Ckuid2:68213:29018:2\u003E",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 118,
+  "StdOut": "; \u003CNULL\u003E : print-assets \u0022\u003Ckuid:942117:23\u003E\u0022 \u0022\u003Ckuid2:68213:29018:2\u003E\u0022 \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  \u002B \u003Ckuid:-2:117104311\u003E : \u003Ckuid:-2:117104311\u003E\r\n  \u002B \u003Ckuid:942117:23\u003E : \u003Ckuid:942117:23\u003E\r\n  \u002B \u003Ckuid2:68213:29018:2\u003E : \u003Ckuid2:68213:29018:2\u003E\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

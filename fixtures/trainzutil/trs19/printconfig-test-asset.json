@@ -1,0 +1,15 @@
+{
+  "Name": "printconfig-test-asset",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:21:30.4795098+00:00",
+  "Arguments": [
+    "printconfig",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 482,
+  "StdOut": "; \u003CNULL\u003E : printconfig \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  - \u003Ckuid:-2:117104311\u003E : Asset is not local\r\nOK (1 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

@@ -1,0 +1,15 @@
+{
+  "Name": "install-test-asset-nospace",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:23:12.3940921+00:00",
+  "Arguments": [
+    "installfrompath",
+    "C:\\Users\\Public\\RailNexusUji\\railnexus-uji--2-117104311"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 469,
+  "StdOut": "; \u003CNULL\u003E : installfrompath \u0022C:\\\\Users\\\\Public\\\\RailNexusUji\\\\railnexus-uji--2-117104311\u0022\r\n  ; \u003CNULL\u003E : TADInstallAssetFromPath\u003E C:/Users/Public/RailNexusUji/railnexus-uji--2-117104311\r\n    ; \u003Ckuid:-2:117104311\u003E : TADInstallAssetPackage\u003E \u003Ckuid:-2:117104311\u003E \u0022RailNexus aset uji\u0022\r\n      \u002B \u003Ckuid:-2:117104311\u003E : \u003Ckuid:-2:117104311\u003E opened for edit\r\n      ; \u003Ckuid:-2:117104311\u003E : Wrote \u003Ckuid:-2:117104311\u003E to disk\r\n      ; \u003Ckuid:-2:117104311\u003E : Skipped commit for \u003Ckuid:-2:117104311\u003E\r\n      \u002B \u003Ckuid:-2:117104311\u003E : Installed asset \u003Ckuid:-2:117104311\u003E\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": "aset uji RailNexus, path tanpa spasi"
+}

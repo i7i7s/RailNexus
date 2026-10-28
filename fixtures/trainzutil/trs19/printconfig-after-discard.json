@@ -1,0 +1,15 @@
+{
+  "Name": "printconfig-after-discard",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:47:47.1385058+00:00",
+  "Arguments": [
+    "printconfig",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 196,
+  "StdOut": "; \u003CNULL\u003E : printconfig \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  ; \u003CNULL\u003E : \u002B Start of \u003Ckuid:-2:117104311\u003E dump\r\n  ; \u003CNULL\u003E : ?\r\n  ; \u003CNULL\u003E : kuid                                    \u003Ckuid:-2:117104311\u003E\r\n  ; \u003CNULL\u003E : username                                \u0022RailNexus aset uji\u0022\r\n  ; \u003CNULL\u003E : kind                                    \u0022texture\u0022\r\n  ; \u003CNULL\u003E : trainz-build                            4.6\r\n  ; \u003CNULL\u003E : category-class                          \u0022YT\u0022\r\n  ; \u003CNULL\u003E : texture                                 \u0022rn_uji.texture\u0022\r\n  ; \u003CNULL\u003E : description                             \u0022RailNexus-uji-Tahap0 - boleh dihapus.\u0022\r\n  ; \u003CNULL\u003E : \r\n  ; \u003CNULL\u003E : thumbnails\r\n  ; \u003CNULL\u003E : {\r\n  ; \u003CNULL\u003E :   0\r\n  ; \u003CNULL\u003E :   {\r\n  ; \u003CNULL\u003E :     image                               \u0022thumbnail.png\u0022\r\n  ; \u003CNULL\u003E :     width                               240\r\n  ; \u003CNULL\u003E :     height                              180\r\n  ; \u003CNULL\u003E :   }\r\n  ; \u003CNULL\u003E : }\r\n  ; \u003CNULL\u003E : \u002B End of \u003Ckuid:-2:117104311\u003E dump\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

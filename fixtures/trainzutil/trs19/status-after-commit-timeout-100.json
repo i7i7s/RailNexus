@@ -1,0 +1,15 @@
+{
+  "Name": "status-after-commit-timeout-100",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:44:09.6849242+00:00",
+  "Arguments": [
+    "status",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 156,
+  "StdOut": "; \u003CNULL\u003E : status \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  \u002B \u003Ckuid:-2:117104311\u003E : abcdEfgILmopuXY : CMP;TX : RailNexus aset uji\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

@@ -1,0 +1,14 @@
+{
+  "Name": "unknown-command",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:19:57.1626761+00:00",
+  "Arguments": [
+    "bukanperintah"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 280,
+  "StdOut": "; \u003CNULL\u003E : bukanperintah\r\n  - \u003CNULL\u003E : Invalid command syntax: bukanperintah\r\nOK (1 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

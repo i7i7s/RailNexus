@@ -1,0 +1,14 @@
+{
+  "Name": "probe-version",
+  "Build": "TRS19 (Steam) \u2014 nomor build diisi dari keluaran \u0027version\u0027",
+  "CapturedAt": "2026-10-28T06:19:14.1491179+00:00",
+  "Arguments": [
+    "version"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 61,
+  "StdOut": "; \u003CNULL\u003E : version\r\n  \u002B \u003CNULL\u003E : Build 117026\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": "railnexus probe"
+}

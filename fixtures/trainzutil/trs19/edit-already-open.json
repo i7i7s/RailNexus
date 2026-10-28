@@ -1,0 +1,15 @@
+{
+  "Name": "edit-already-open",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:25:16.1756519+00:00",
+  "Arguments": [
+    "edit",
+    "\u003Ckuid:-2:117104311\u003E"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 343,
+  "StdOut": "; \u003CNULL\u003E : edit \u0022\u003Ckuid:-2:117104311\u003E\u0022\r\n  ; \u003CNULL\u003E : \u002B \u003Ckuid:-2:117104311\u003E : C:/Users/%USERNAME%/AppData/Local/N3V Games/trs19/build keqxphu81/editing/kuid -2 117104311 RailNexus aset uji/\r\nOK (0 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": ""
+}

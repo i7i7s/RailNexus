@@ -1,0 +1,15 @@
+{
+  "Name": "install-test-asset-slash",
+  "Build": "TRS19",
+  "CapturedAt": "2026-10-28T06:22:33.7483164+00:00",
+  "Arguments": [
+    "installfrompath",
+    "C:/Users/%USERNAME%/AppData/Local/RailNexus/tahap0/aset-uji/railnexus-uji--2-117104311"
+  ],
+  "ExitCode": 0,
+  "TimedOut": false,
+  "DurationMs": 5193,
+  "StdOut": "; \u003CNULL\u003E : installfrompath \u0022C:/Users/%USERNAME%/AppData/Local/RailNexus/tahap0/aset-uji/railnexus-uji--2-117104311\u0022\r\n  - \u003CNULL\u003E : Invalid input file path: C:/Users/%USERNAME%/AppData/Local/RailNexus/tahap0/aset-uji/railnexus-uji--2-117104311\r\nOK (1 Errors, 0 Warnings)\r\n",
+  "StdErr": "",
+  "Note": "aset uji RailNexus, path garis miring"
+}

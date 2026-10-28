@@ -1,0 +1,16 @@
+{
+  "id": "trs19",
+  "build": "TRS19 build 117026 (Steam)",
+  "notes": "Sintaks dari keluaran 'help' TrainzUtil pada build ini (fixtures/trainzutil/trs19/probe-help.json). Syarat koneksi: Trainz berjalan dengan 'Advanced Debug Tools' aktif, setelah Trainz dibuka ulang. Exit code selalu 0; hasil dibaca dari baris penutup 'OK (n Errors, m Warnings)'. Path berspasi ditolak oleh installfrompath.",
+  "commands": {
+    "Help": { "args": [ "help" ], "verified": true, "evidence": "probe-help.json", "timeoutSeconds": 30 },
+    "Version": { "args": [ "version" ], "verified": true, "evidence": "probe-version.json", "timeoutSeconds": 30 },
+    "Status": { "args": [ "status", "{kuid}" ], "verified": true, "evidence": "status-after-install.json, status-after-commit.json, status-test-asset.json", "timeoutSeconds": 60 },
+    "BeginEdit": { "args": [ "edit", "{kuid}" ], "verified": true, "evidence": "edit-already-open.json", "timeoutSeconds": 120 },
+    "Commit": { "args": [ "commit", "{kuid}" ], "verified": true, "evidence": "commit-test-asset.json", "timeoutSeconds": 300 },
+    "Revert": { "args": [ "revert", "{kuid}" ], "verified": true, "evidence": "revert-not-open.json (revert saat aset terbuka belum ditangkap)", "timeoutSeconds": 120 },
+    "Validate": { "args": [ "validate", "{kuid}" ], "verified": true, "evidence": "validate-after-commit.json, validate-after-install.json", "timeoutSeconds": 300 },
+    "StatusBatch": { "args": [ "filterbystatus", "I" ], "verified": true, "evidence": "filterbystatus-I-3.json (3 KUID → 3 baris berformat sama dengan status). 'status <KUID> [..]' hanya memproses KUID pertama: status-batch-VE.json", "timeoutSeconds": 120 },
+    "ImportFolder": { "args": [ "installfrompath", "{path}" ], "verified": true, "evidence": "install-test-asset-nospace.json; gagal dengan spasi: install-test-asset.json", "timeoutSeconds": 300 }
+  }
+}

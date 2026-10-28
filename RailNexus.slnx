@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RailNexus.Cli/RailNexus.Cli.csproj" />
+    <Project Path="src/RailNexus.Core/RailNexus.Core.csproj" />
+    <Project Path="src/RailNexus.Trainz/RailNexus.Trainz.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RailNexus.Tests/RailNexus.Tests.csproj" />
+  </Folder>
+</Solution>
