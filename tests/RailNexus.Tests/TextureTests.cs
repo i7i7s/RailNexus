@@ -510,3 +510,62 @@ public sealed class TextureWorkshopTests : IDisposable
         Assert.Null(draft.ToEditPlan(Encoding.UTF8.GetBytes("kuid <kuid:1:2>\r\n"), "x").Plan);
     }
 }
+
+public sealed class ChannelPackerTests : IDisposable
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("rn pbr ").FullName;
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_root, recursive: true); } catch (IOException) { }
+    }
+
+    private string Img(string name, Func<int, int, int[]> px)
+    {
+        var p = Path.Combine(_root, name);
+        File.WriteAllBytes(p, Png(W, H, 6, px));
+        return p;
+    }
+
+    [Fact]
+    public void Every_output_channel_comes_from_its_declared_source_AC17()
+    {
+        var a = Img("a.png", (x, y) => [x * 10, 1, 2, 3]);
+        var b = Img("b.png", (x, y) => [9, 9, y * 20, 200 - x]);
+        var c = Img("c.png", (x, y) => [5, 6, 7, x * 30 + y]);
+        var r = ChannelPacker.Pack(new(a, SourceChannel.R), new(b, SourceChannel.B), ChannelInput.Const(77), new(c, SourceChannel.A));
+        Assert.True(r.Ok, r.Error);
+        Assert.Contains(r.ChannelReport, s => s.StartsWith("B: nilai konstan pilihan pengguna (77)", StringComparison.Ordinal));
+
+        var ws = new TextureWorkshop(Path.Combine(_root, "staging"));
+        var prepared = ws.PrepareImage(r.Image!, "param", "uji", DictionaryFileView.Empty);
+        Assert.True(prepared.Ok);
+        var back = ImageCodec.Decode(prepared.Files.Single(f => f.RelativePath == "param.tga").Bytes).Image!;
+        for (var y = 0; y < H; y++)
+        for (var x = 0; x < W; x++)
+            Assert.Equal(((byte)(x * 10), (byte)(y * 20), (byte)77, (byte)(x * 30 + y)), back.Pixel(x, y));
+        Assert.Equal(32, prepared.Items[0].OutputBits);
+    }
+
+    [Fact]
+    public void Size_mismatch_and_constant_only_are_refused()
+    {
+        var a = Img("a.png", (x, y) => [1, 2, 3, 4]);
+        var small = Path.Combine(_root, "small.png");
+        File.WriteAllBytes(small, Png(2, 2, 2, (_, _) => [1, 1, 1]));
+        Assert.Contains("Ukuran gambar sumber berbeda", ChannelPacker.Pack(new(a), new(small), ChannelInput.Const(0), ChannelInput.Const(0)).Error);
+        Assert.Contains("Minimal satu kanal", ChannelPacker.Pack(ChannelInput.Const(1), ChannelInput.Const(1), ChannelInput.Const(1), ChannelInput.Const(1)).Error);
+    }
+
+    [Fact]
+    public void Luminance_and_missing_alpha_are_noted()
+    {
+        var rgb = Path.Combine(_root, "rgb.png");
+        File.WriteAllBytes(rgb, PatternPngRgb());
+        var r = ChannelPacker.Pack(new(rgb, SourceChannel.Luminance), new(rgb, SourceChannel.A), ChannelInput.Const(0), ChannelInput.Const(255));
+        Assert.True(r.Ok);
+        Assert.Contains(r.Notes, n => n.Contains("kecerahan"));
+        Assert.Contains(r.Notes, n => n.Contains("tidak memiliki alpha"));
+        Assert.Equal(255, r.Image!.Pixel(0, 0).G);
+    }
+}

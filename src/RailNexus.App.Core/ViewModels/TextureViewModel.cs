@@ -140,8 +140,9 @@ public sealed class TextureViewModel : ObservableObject, IPage
     private string? _exportFolder;
     private string? _message;
 
-    public TextureViewModel(AssetWorkspace? workspace, string stagingRoot, Action? back = null)
+    public TextureViewModel(AssetWorkspace? workspace, string stagingRoot, Action? back = null, Action? openPbr = null)
     {
+        OpenPbrCommand = new RelayCommand(() => openPbr?.Invoke(), () => openPbr is not null);
         _workspace = workspace;
         _engine = new TextureWorkshop(stagingRoot);
         _back = back;
@@ -166,6 +167,7 @@ public sealed class TextureViewModel : ObservableObject, IPage
     public ObservableCollection<InventoryItem> Inventory { get; } = new();
     public RelayCommand PrimaryCommand { get; }
     public RelayCommand MetadataCommand { get; }
+    public RelayCommand OpenPbrCommand { get; }
     public string? Message { get => _message; private set => Set(ref _message, value); }
 
     /// <summary>Subfolder tujuan di dalam aset/folder, mis. "textures". Kosong = akar.</summary>

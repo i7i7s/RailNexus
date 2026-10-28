@@ -81,7 +81,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
     public bool ShowDraftPanel => ActiveAsset is not null &&
         CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel or SoundViewModel or CargoViewModel
-            or TextureViewModel { IsAssetMode: true };
+            or TextureViewModel { IsAssetMode: true } or PbrViewModel { IsAssetMode: true };
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
         : _session.Runner is null ? new("Terhubung · hanya baca", Tone.Warn)
@@ -224,7 +224,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private AssetNavigation AssetNav(AssetWorkspace ws) =>
         new(OpenRole, entry => Loading = OpenAssetAsync(entry), () => OpenTexture(ws), () => OpenEditor(ws), () => BackToHub(ws));
 
-    private void OpenTexture(AssetWorkspace ws) => CurrentPage = new TextureViewModel(ws, StagingRoot, () => BackToHub(ws));
+    private void OpenTexture(AssetWorkspace ws) => CurrentPage = new TextureViewModel(ws, StagingRoot, () => BackToHub(ws),
+        () => CurrentPage = new PbrViewModel(ws, StagingRoot, () => OpenTexture(ws)));
 
     private void OpenRepair(AssetWorkspace ws)
     {
@@ -236,7 +237,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void OpenTextureFolder()
     {
         ActiveAsset = null;
-        CurrentPage = new TextureViewModel(null, StagingRoot, () => Navigate(Nav.Single(n => n.Key == "workshop")));
+        CurrentPage = new TextureViewModel(null, StagingRoot, () => Navigate(Nav.Single(n => n.Key == "workshop")),
+            () => CurrentPage = new PbrViewModel(null, StagingRoot, OpenTextureFolder));
         MarkActive("workshop");
     }
 

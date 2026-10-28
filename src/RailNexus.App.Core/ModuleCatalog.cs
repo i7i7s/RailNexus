@@ -27,7 +27,7 @@ public static class ModuleCatalog
         new("Workshop Mesh: Bayangan", "QuickShadows",
             "Geometri bayangan untuk profil legacy.", "P2", Research),
         new("Workshop Tekstur: Konversi", "Images2TGA",
-            "PNG/TGA → TGA 24/32-bit dengan verifikasi baca ulang; benturan nama; staging.", "P0 gambar umum · P1 PBR · P2 .texture", Basic),
+            "PNG/TGA → TGA 24/32-bit dengan verifikasi baca ulang; benturan nama; staging; perakit kanal PBR.", "P0 gambar umum · P1 PBR · P2 .texture", Basic),
         new("Workshop Mesh: Konversi Legacy", "PM2IM",
             "Mesh .pm → .im.", "P2", Research),
         new("Titik Pemasangan", "Attachment Maker",

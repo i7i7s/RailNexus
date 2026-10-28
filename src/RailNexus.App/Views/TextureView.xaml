@@ -14,6 +14,7 @@
                 <StackPanel>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Tambah gambar…" Click="AddFiles_Click" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Perakit PBR…" Command="{Binding OpenPbrCommand}" Margin="0,0,8,0" />
                         <StackPanel>
                             <TextBlock Text="Gambar sumber" Style="{StaticResource Text.H2}" />
                             <TextBlock Style="{StaticResource Text.Caption}"

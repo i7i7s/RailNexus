@@ -413,6 +413,35 @@ public sealed class TextureWorkshop(string stagingRoot)
     }
 
     /// <summary>
+    /// Menulis gambar hasil rakitan (mis. perakit kanal PBR) melalui jalur yang sama: benturan nama,
+    /// staging, baca ulang per kanal, dan metadata. Output selalu 32-bit karena kanal alpha berisi data.
+    /// </summary>
+    public TexturePrepareResult PrepareImage(RasterImage image, string outputName, string description, IAssetFileView existing,
+        string targetDirectory = "", CollisionChoice collision = CollisionChoice.Unresolved)
+    {
+        var source = new TextureSource(outputName + ".rakitan", TextureRole.Parameter, AlphaChoice.Keep, outputName, collision);
+        var targets = PlanNames([source], existing, targetDirectory);
+        var unresolved = targets.SelectMany(t => t.Unresolved).ToList();
+        if (unresolved.Count > 0)
+            return new TexturePrepareResult(false, $"{unresolved.Count} benturan nama belum diselesaikan. Tidak ada berkas yang dibuat.", targets, [], [], null);
+        var t = targets[0];
+        if (t.Skipped)
+            return new TexturePrepareResult(true, "Dilewati.", targets, [new TextureItemResult(t, TextureItemStatus.Skipped, description, image.Width, image.Height, null, [])], [], null);
+
+        var staging = Path.Combine(stagingRoot, $"{DateTime.UtcNow:yyyyMMddTHHmmss}-{Guid.NewGuid().ToString("N")[..8]}");
+        Directory.CreateDirectory(Path.Combine(staging, "out"));
+        var notes = new List<string>();
+        var (imageFile, err) = WriteVerified(t.ImagePath, image, withAlpha: true, existing, staging, $"{description} → {t.ImagePath} (32-bit)");
+        if (imageFile is null)
+            return new TexturePrepareResult(true, err, targets, [new TextureItemResult(t, TextureItemStatus.Failed, description, image.Width, image.Height, null, notes, err)], [], staging);
+        var (meta, metaErr) = BuildMetadata(t.MetadataPath, Path.GetFileName(t.ImagePath), null, existing, staging, notes);
+        if (meta is null)
+            return new TexturePrepareResult(true, metaErr, targets, [new TextureItemResult(t, TextureItemStatus.Failed, description, image.Width, image.Height, null, notes, metaErr)], [], staging);
+        return new TexturePrepareResult(true, "1 gambar rakitan siap; setiap kanal dibaca ulang dan cocok.", targets,
+            [new TextureItemResult(t, TextureItemStatus.Ready, description, image.Width, image.Height, 32, notes)], [imageFile, meta], staging);
+    }
+
+    /// <summary>
     /// Alur B (PRD 13.4): membuat atau memperbarui <c>.texture.txt</c> untuk gambar yang sudah ada di aset,
     /// tanpa mengonversi gambarnya. Gambar harus dapat dibaca agar metadata tidak menunjuk berkas rusak.
     /// </summary>

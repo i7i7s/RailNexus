@@ -1086,4 +1086,35 @@ public sealed class AppViewModelTests : IDisposable
         batch.LoadPresetCommand.Execute("Ganti KL-2 ke KL-3");
         Assert.Equal("<kuid:999002:3101>", batch.From);
     }
+
+    // ------------------------------------------------------------- UI-16
+
+    [Fact]
+    public async Task Pbr_packer_adds_verified_map_to_draft()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        var tex = OpenTexture(main);
+        tex.OpenPbrCommand.Execute(null);
+        var pbr = Assert.IsType<PbrViewModel>(main.CurrentPage);
+        Assert.True(main.ShowDraftPanel);
+        Assert.Contains("RailNexus tidak menebaknya", pbr.Hint);
+        Assert.Equal("Rakit dan periksa hasilnya dulu.", pbr.PrimaryDisabledReason);
+
+        var src = ImageFile("rough.png", ImageFixtures.PatternPngRgba());
+        pbr.Slots[1].ImagePath = src;
+        pbr.Slots[1].Channel = SourceChannel.G;
+        pbr.Slots[1].Meaning = "roughness";
+        pbr.Slots[3].Constant = 255;
+        pbr.PackCommand.Execute(null);
+        Assert.NotNull(pbr.Preview);
+        Assert.Contains(pbr.Report, r => r.StartsWith("G: kanal G dari rough.png", StringComparison.Ordinal));
+        Assert.True(pbr.Footer.IsEnabled);
+
+        pbr.PrimaryCommand.Execute(null);
+        Assert.Contains("masuk draft", pbr.Message);
+        Assert.Equal("2 perubahan siap", main.Draft!.CountLabel);
+        pbr.Slots[1].Channel = SourceChannel.R; // mengubah pilihan membatalkan hasil rakitan
+        Assert.Equal("Rakit dan periksa hasilnya dulu.", pbr.PrimaryDisabledReason);
+    }
 }
