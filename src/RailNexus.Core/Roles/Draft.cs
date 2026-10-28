@@ -12,6 +12,15 @@ public abstract record DraftItem(string Module, string Summary)
 
     public sealed record SetText(string Path, string Value, string Module, string Summary)
         : DraftItem(Module, Summary);
+
+    /// <summary>
+    /// Menulis satu berkas selain config.txt, mis. hasil Workshop Tekstur. BaseHash adalah hash berkas
+    /// di tujuan saat hasil disiapkan (null = belum ada), sehingga perubahan sesudahnya terdeteksi (AC-10).
+    /// </summary>
+    public sealed record WriteFile(string RelativePath, byte[] Bytes, string? BaseHash, string Module, string Summary)
+        : DraftItem(Module, Summary);
+
+    public bool ChangesConfig => this is ReplaceKuid or SetText;
 }
 
 public sealed record DraftBuild(
@@ -46,8 +55,16 @@ public sealed class Draft(Kuid asset)
     {
         (DraftItem.ReplaceKuid x, DraftItem.ReplaceKuid y) => x.SlotPath.Equals(y.SlotPath, StringComparison.OrdinalIgnoreCase),
         (DraftItem.SetText x, DraftItem.SetText y) => x.Path.Equals(y.Path, StringComparison.OrdinalIgnoreCase),
+        (DraftItem.WriteFile x, DraftItem.WriteFile y) => SamePath(x.RelativePath, y.RelativePath),
         _ => false,
     };
+
+    private static bool SamePath(string a, string b) =>
+        a.Replace('\\', '/').Equals(b.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+    public bool HasConfigChanges => _items.Any(i => i.ChangesConfig);
+
+    public void Clear() => _items.Clear();
 
     public DraftBuild Build(string originalText)
     {
@@ -84,6 +101,10 @@ public sealed class Draft(Kuid asset)
                     handled.Add($"{s.Summary} di '{s.Path}'");
                     break;
                 }
+                case DraftItem.WriteFile f:
+                    // Berkas lain tidak menyentuh config; isinya ikut rencana di ToEditPlan.
+                    handled.Add(f.Summary);
+                    break;
             }
         }
 
@@ -107,10 +128,26 @@ public sealed class Draft(Kuid asset)
             return (null, new DraftBuild(false, "Encoding config tidak dikenali sebagai UTF-8; perubahan otomatis tidak dilakukan.", text, [], []));
         var build = Build(text);
         if (!build.Ok) return (null, build);
-        var bytes = (hasBom ? encoding.GetPreamble() : []).Concat(encoding.GetBytes(build.NewText)).ToArray();
-        var plan = new EditPlan(asset, purpose,
-            [new FileChange("config.txt", bytes)],
-            new Dictionary<string, string?> { ["config.txt"] = Hashing.Sha256(originalBytes) });
-        return (plan, build);
+
+        var files = _items.OfType<DraftItem.WriteFile>().ToList();
+        if (files.FirstOrDefault(f => SamePath(f.RelativePath, "config.txt")) is { } bad)
+            return (null, build with { Ok = false, Error = $"{bad.Summary}: config.txt hanya diubah lewat perubahan config, bukan sebagai berkas utuh." });
+
+        var changes = new List<FileChange>();
+        var expected = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        // config.txt hanya ikut ditulis bila ada perubahan config; draft berisi tekstur saja tidak menyentuhnya.
+        if (HasConfigChanges)
+        {
+            var bytes = (hasBom ? encoding.GetPreamble() : []).Concat(encoding.GetBytes(build.NewText)).ToArray();
+            changes.Add(new FileChange("config.txt", bytes));
+            expected["config.txt"] = Hashing.Sha256(originalBytes);
+        }
+        foreach (var f in files)
+        {
+            changes.Add(new FileChange(f.RelativePath, f.Bytes));
+            expected[f.RelativePath] = f.BaseHash;
+        }
+        if (changes.Count == 0) return (null, build with { Ok = false, Error = "Draft kosong; tidak ada yang diterapkan." });
+        return (new EditPlan(asset, purpose, changes, expected), build);
     }
 }

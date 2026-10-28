@@ -19,6 +19,9 @@ public static class SafePath
     /// </summary>
     public static string Combine(string root, string relative)
     {
+        // Path aset Trainz memakai '\'; di luar Windows tanda ini juga diperlakukan sebagai pemisah
+        // agar "..\luar.txt" tetap terdeteksi keluar folder.
+        relative = relative.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
         if (Path.IsPathRooted(relative))
             throw new ArgumentException($"Path harus relatif: '{relative}'", nameof(relative));
         var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
