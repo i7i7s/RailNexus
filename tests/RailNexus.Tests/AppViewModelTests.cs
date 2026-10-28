@@ -1117,4 +1117,51 @@ public sealed class AppViewModelTests : IDisposable
         pbr.Slots[1].Channel = SourceChannel.R; // mengubah pilihan membatalkan hasil rakitan
         Assert.Equal("Rakit dan periksa hasilnya dulu.", pbr.PrimaryDisabledReason);
     }
+
+    // ------------------------------------------------------------- editor teks penuh (P1)
+
+    [Fact]
+    public async Task Text_editor_saves_valid_text_and_blocks_invalid_EDITAC()
+    {
+        var main = await ConnectedShell();
+        await main.OpenAssetAsync(Entry(main, Loco));
+        await AddHorn3(main); // perubahan dari modul lain sudah ada di draft
+        var editor = OpenEditor(main);
+
+        editor.EditTextCommand.Execute(null);
+        Assert.True(editor.IsTextEditing);
+        Assert.Contains("<kuid:999002:3103>", editor.EditableText); // teks dasar = hasil draft
+        Assert.Equal("Belum ada perubahan teks.", editor.TextSaveProblem);
+
+        // Teks tidak valid: tidak dapat disimpan, formulir dikunci.
+        editor.EditableText = editor.EditableText!.Replace("bogeys\n{", "bogeys\n{\n  {").Replace("bogeys\r\n{", "bogeys\r\n{\r\n  {");
+        Assert.True(editor.IsTextDirty);
+        Assert.NotEmpty(editor.TextProblems);
+        Assert.StartsWith("Baris ", editor.TextSaveProblem);
+        Assert.Equal("Simpan teks ke draft", editor.Footer.Label);
+        Assert.False(editor.Footer.IsEnabled);
+        Assert.All(editor.Fields, f => Assert.StartsWith("Teks sedang disunting", f.LockedReason));
+
+        editor.CancelTextCommand.Execute(null);
+        Assert.False(editor.IsTextEditing);
+        Assert.True(editor.Fields.Single(f => f.Path == "description").IsEditable);
+
+        editor.EditTextCommand.Execute(null);
+        editor.EditableText = editor.EditableText!.Replace("\"dipertahankan\"", "\"diubah lewat teks\"");
+        Assert.Null(editor.TextSaveProblem);
+        editor.SaveTextCommand.Execute(null);
+        Assert.False(editor.IsTextEditing);
+        var item = Assert.Single(main.ActiveAsset!.Draft.Items);
+        Assert.IsType<DraftItem.ReplaceConfigText>(item);
+        Assert.Contains(editor.Changes, c => c.Kind == DiffKind.Added && c.Text.Contains("diubah lewat teks"));
+
+        await main.Draft!.ApplyCommand.ExecuteAsync();
+        Assert.Equal("Berhasil", main.Draft.Outcome!.Status.Text);
+        var installed = Encoding.UTF8.GetString(_sim.InstalledFile(Loco, "config.txt")!);
+        Assert.Contains("\"diubah lewat teks\"", installed);
+        Assert.Contains("<kuid:999002:3103>", installed); // efek klakson tetap
+        // Baris yang tidak disentuh identik dengan asli.
+        var original = Encoding.UTF8.GetString(_locoConfig);
+        Assert.Equal(LineDiff.SplitLines(original).Count, LineDiff.SplitLines(installed).Count);
+    }
 }

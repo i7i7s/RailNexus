@@ -45,3 +45,28 @@ public sealed class LineDiffTests
         Assert.Equal(["l23", "l24", "l25", "L25", "l26", "l27"], ctx.Select(l => l.Text));
     }
 }
+
+public sealed class DraftTextTests
+{
+    [Fact]
+    public void Replace_text_applies_first_and_rejects_changed_base()
+    {
+        const string original = "kuid <kuid:1:2>\r\ndescription \"a\"\r\n";
+        const string edited = "kuid <kuid:1:2>\r\ndescription \"b\"\r\n// catatan\r\n";
+        var draft = new RailNexus.Core.Roles.Draft(new RailNexus.Core.Kuid(1, 2, null));
+        draft.Put(new RailNexus.Core.Roles.DraftItem.SetText("description", "c", "m", "deskripsi"));
+        draft.Put(new RailNexus.Core.Roles.DraftItem.ReplaceConfigText(edited, RailNexus.Core.Roles.Draft.TextHash(original), "m", "teks"));
+        Assert.IsType<RailNexus.Core.Roles.DraftItem.ReplaceConfigText>(draft.Items[0]);
+        var build = draft.Build(original);
+        Assert.True(build.Ok, build.Error);
+        Assert.Equal("kuid <kuid:1:2>\r\ndescription \"c\"\r\n// catatan\r\n", build.NewText);
+
+        var stale = draft.Build("kuid <kuid:1:2>\r\ndescription \"x\"\r\n");
+        Assert.False(stale.Ok);
+        Assert.Contains("config berubah sejak teks disunting", stale.Error);
+
+        var bad = new RailNexus.Core.Roles.Draft(new RailNexus.Core.Kuid(1, 2, null));
+        bad.Put(new RailNexus.Core.Roles.DraftItem.ReplaceConfigText("a\r\n{\r\n", RailNexus.Core.Roles.Draft.TextHash(original), "m", "teks"));
+        Assert.Contains("error struktur", bad.Build(original).Error);
+    }
+}

@@ -76,6 +76,9 @@ public sealed class EditorViewModel : ObservableObject, IPage, IDisposable
     private readonly FooterAction _saveFooter;
     private EditorTab _tab = EditorTab.Form;
     private string _search = "";
+    private readonly FooterAction _saveTextFooter;
+    private string? _editableText;
+    private string? _editBase;
 
     public EditorViewModel(AssetWorkspace workspace, FooterAction applyFooter, Action back)
     {
@@ -84,6 +87,11 @@ public sealed class EditorViewModel : ObservableObject, IPage, IDisposable
         _applyFooter = applyFooter;
         SaveCommand = new RelayCommand(SavePlan, HasUnsaved);
         _saveFooter = new FooterAction("Simpan rencana", SaveCommand, () => "Perubahan formulir belum masuk draft.");
+        // Isian formulir yang belum disimpan harus masuk draft dulu agar tidak hilang saat teks disunting.
+        EditTextCommand = new RelayCommand(BeginTextEdit, () => !IsTextEditing && _workspace.ConfigText is not null && !HasUnsaved());
+        SaveTextCommand = new RelayCommand(SaveText, () => TextSaveProblem is null);
+        CancelTextCommand = new RelayCommand(CancelText, () => IsTextEditing);
+        _saveTextFooter = new FooterAction("Simpan teks ke draft", SaveTextCommand, () => TextSaveProblem ?? "Teks yang disunting belum masuk draft.");
         SelectTabCommand = new ParamCommand<string>(t => { if (Enum.TryParse<EditorTab>(t, out var tab)) Tab = tab; });
         Build();
         _workspace.Changed += OnWorkspaceChanged;
@@ -104,7 +112,7 @@ public sealed class EditorViewModel : ObservableObject, IPage, IDisposable
 
     public string Title => "Editor aset";
     /// <summary>Selama formulir punya perubahan yang belum disimpan, tindakan utama adalah Simpan rencana.</summary>
-    public FooterAction Footer => SaveCommand.CanExecute(null) ? _saveFooter : _applyFooter;
+    public FooterAction Footer => IsTextDirty ? _saveTextFooter : SaveCommand.CanExecute(null) ? _saveFooter : _applyFooter;
     public string? BackLabel => "Kembali ke Mau edit apa?";
     public void Back() => _back();
 
@@ -130,10 +138,103 @@ public sealed class EditorViewModel : ObservableObject, IPage, IDisposable
 
     public string ProblemsLabel => Problems.Count == 0 ? "Masalah" : $"Masalah · {Problems.Count}";
 
+    // ------------------------------------------------------------------ editor teks penuh (P1)
+
+    public RelayCommand EditTextCommand { get; }
+    public RelayCommand SaveTextCommand { get; }
+    public RelayCommand CancelTextCommand { get; }
+    public ObservableCollection<ProblemItem> TextProblems { get; } = new();
+
+    public bool IsTextEditing => _editableText is not null;
+
+    /// <summary>Teks yang sedang disunting: isi config setelah seluruh draft, disunting langsung.</summary>
+    public string? EditableText
+    {
+        get => _editableText;
+        set
+        {
+            if (_editableText is null || !Set(ref _editableText, value ?? "")) return;
+            ValidateText();
+        }
+    }
+
+    /// <summary>Teks berbeda dari dasar suntingan dan belum masuk draft.</summary>
+    public bool IsTextDirty => _editableText is not null && Normalize(_editableText) != _editBase;
+
+    /// <summary>Alasan teks belum dapat masuk draft; null bila siap (PRD 11.3: teks tidak valid tidak ditulis).</summary>
+    public string? TextSaveProblem =>
+        !IsTextEditing ? "Mulai sunting teks dulu."
+        : !IsTextDirty ? "Belum ada perubahan teks."
+        : TextProblems.FirstOrDefault(p => p.Severity.Tone == Tone.Err) is { } e ? $"Baris {e.Line}: {e.Message}. Perbaiki sebelum menyimpan."
+        : null;
+
+    private string Normalize(string text)
+    {
+        // Akhir baris mengikuti gaya config asli agar baris yang tidak disentuh tetap identik.
+        var nl = _workspace.Document?.NewLine ?? "\r\n";
+        return text.Replace("\r\n", "\n").Replace("\n", nl);
+    }
+
+    private void BeginTextEdit()
+    {
+        if (_workspace.ConfigText is not { } original) return;
+        var build = _workspace.Draft.Build(original);
+        _editBase = build.Ok ? build.NewText : original;
+        _editableText = _editBase;
+        OnPropertyChanged(nameof(EditableText));
+        ValidateText();
+    }
+
+    private void ValidateText()
+    {
+        TextProblems.Clear();
+        if (_editableText is { } t)
+            foreach (var d in ConfigDocument.Parse(Normalize(t)).Diagnostics.OrderBy(d => d.Line))
+                TextProblems.Add(new ProblemItem(d.Line, d.Code, d.Severity == Severity.Error ? new StatusLabel("Error", Tone.Err)
+                    : d.Severity == Severity.Warning ? new StatusLabel("Peringatan", Tone.Warn) : new StatusLabel("Info", Tone.Info), d.Message));
+        RefreshTextState();
+    }
+
+    private void RefreshTextState()
+    {
+        foreach (var n in new[] { nameof(IsTextEditing), nameof(IsTextDirty), nameof(TextSaveProblem), nameof(Footer) }) OnPropertyChanged(n);
+        EditTextCommand.Refresh();
+        SaveTextCommand.Refresh();
+        CancelTextCommand.Refresh();
+        _saveTextFooter.Refresh();
+        Build(keepText: true);
+    }
+
+    /// <summary>
+    /// Seluruh perubahan config di draft digantikan satu teks utuh (teks itu sudah memuat efeknya);
+    /// berkas non-config di draft tetap.
+    /// </summary>
+    private void SaveText()
+    {
+        if (TextSaveProblem is not null || _workspace.ConfigText is not { } original) return;
+        foreach (var item in _workspace.Draft.Items.Where(i => i.ChangesConfig).ToList()) _workspace.Draft.Remove(item);
+        _workspace.Draft.Put(new DraftItem.ReplaceConfigText(Normalize(_editableText!), Draft.TextHash(original), "Editor aset", "Sunting teks config"));
+        _editableText = null;
+        _editBase = null;
+        OnPropertyChanged(nameof(EditableText));
+        _workspace.NotifyDraftChanged();
+        RefreshTextState();
+        Tab = EditorTab.Changes;
+    }
+
+    private void CancelText()
+    {
+        _editableText = null;
+        _editBase = null;
+        TextProblems.Clear();
+        OnPropertyChanged(nameof(EditableText));
+        RefreshTextState();
+    }
+
     private string? DraftValue(string path) => _workspace.Draft.Items.OfType<DraftItem.SetText>()
         .FirstOrDefault(i => i.Path.Equals(path, StringComparison.OrdinalIgnoreCase)) is { } d ? FormField.Normalize(d.Value) : null;
 
-    private void Build()
+    private void Build(bool keepText = false)
     {
         Fields.Clear(); Info.Clear(); Nodes.Clear(); Problems.Clear();
         if (_workspace.Document is not { } doc)
@@ -146,14 +247,15 @@ public sealed class EditorViewModel : ObservableObject, IPage, IDisposable
         foreach (var (path, label, help) in EditableFields)
         {
             var hits = doc.Find(path);
-            string? locked = doc.HasErrors ? "Config memiliki error struktur; formulir menunggu perbaikan agar tidak menulis berdasarkan hasil baca yang salah."
+            string? locked = IsTextDirty ? "Teks sedang disunting; simpan atau batalkan suntingan teks dulu agar keduanya tidak saling menimpa."
+                : doc.HasErrors ? "Config memiliki error struktur; formulir menunggu perbaikan agar tidak menulis berdasarkan hasil baca yang salah."
                 : hits.Count == 0 ? "Field ini tidak ada di config; menambah field baru belum didukung."
                 : hits.Count > 1 ? $"Field ini muncul {hits.Count} kali; struktur ambigu tidak diubah otomatis."
                 : hits[0].Value is not { Kind: ValueKind.String or ValueKind.Bare } ? "Nilai field ini bukan teks."
                 : null;
             var original = hits.Count == 1 ? hits[0].Value?.Text : null;
             var field = new FormField(path, label, help, original, DraftValue(path), locked);
-            field.PropertyChanged += (_, _) => { SaveCommand.Refresh(); OnPropertyChanged(nameof(Footer)); };
+            field.PropertyChanged += (_, _) => { SaveCommand.Refresh(); EditTextCommand?.Refresh(); OnPropertyChanged(nameof(Footer)); };
             Fields.Add(field);
         }
         foreach (var (path, label) in InfoFields)
@@ -170,7 +272,7 @@ public sealed class EditorViewModel : ObservableObject, IPage, IDisposable
         FillLines();
         FillChanges();
         OnPropertyChanged(nameof(ProblemsLabel));
-        OnPropertyChanged(nameof(Footer));
+        if (!keepText) OnPropertyChanged(nameof(Footer));
     }
 
     private static ConfigNode ToNode(ConfigTag t) => new(

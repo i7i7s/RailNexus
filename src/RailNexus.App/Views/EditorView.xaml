@@ -72,32 +72,59 @@
             </TabItem>
 
             <TabItem Header="Teks">
-                <DockPanel>
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <TextBlock Text="Cari" Style="{StaticResource Text.H3}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" AutomationProperties.Name="Cari di teks config" />
-                    </DockPanel>
-                    <ListBox ItemsSource="{Binding Lines}" Style="{StaticResource List}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
-                             AutomationProperties.Name="Teks config (baca saja)">
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListItem}">
-                                <Setter Property="Padding" Value="8,1" />
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Number}" Width="44" Foreground="{StaticResource Brush.TextCaption}" TextAlignment="Right" Margin="0,0,12,0" />
-                                        <TextBlock Text="{Binding Text}" />
+                <Grid>
+                    <!-- Baca saja -->
+                    <DockPanel Visibility="{Binding IsTextEditing, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Sunting teks" Command="{Binding EditTextCommand}" Margin="8,0,0,0"
+                                    ToolTip="Simpan dulu perubahan formulir yang belum masuk draft" />
+                            <TextBlock Text="Cari" Style="{StaticResource Text.H3}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" AutomationProperties.Name="Cari di teks config" />
+                        </DockPanel>
+                        <ListBox ItemsSource="{Binding Lines}" Style="{StaticResource List}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                                 AutomationProperties.Name="Teks config (baca saja)">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListItem}">
+                                    <Setter Property="Padding" Value="8,1" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Number}" Width="44" Foreground="{StaticResource Brush.TextCaption}" TextAlignment="Right" Margin="0,0,12,0" />
+                                            <TextBlock Text="{Binding Text}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Issue}" Foreground="#A3201A" Margin="56,0,0,0" FontFamily="{StaticResource Font.Sans}"
+                                                   Visibility="{Binding Issue, Converter={StaticResource VisibleWhen}}" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding Issue}" Foreground="#A3201A" Margin="56,0,0,0" FontFamily="{StaticResource Font.Sans}"
-                                               Visibility="{Binding Issue, Converter={StaticResource VisibleWhen}}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <!-- Sunting: diperiksa parser sebelum dapat masuk draft (PRD 11.3) -->
+                    <DockPanel Visibility="{Binding IsTextEditing, Converter={StaticResource BoolToVisibility}}">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Batalkan suntingan" Command="{Binding CancelTextCommand}" Margin="8,0,0,0" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Simpan teks ke draft" Command="{Binding SaveTextCommand}" />
+                            <TextBlock Text="{Binding TextSaveProblem}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding TextProblems}" MaxHeight="120" Margin="0,8,0,0" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Foreground="#A3201A" TextWrapping="Wrap">
+                                        <Run Text="Baris " /><Run Text="{Binding Line, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Message, Mode=OneWay}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBox Text="{Binding EditableText, UpdateSourceTrigger=PropertyChanged, Delay=400}" AcceptsReturn="True" AcceptsTab="True"
+                                 FontFamily="{StaticResource Font.Mono}" FontSize="12.5" VerticalContentAlignment="Top" Padding="8"
+                                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
+                                 AutomationProperties.Name="Sunting teks config" />
+                    </DockPanel>
+                </Grid>
             </TabItem>
 
             <TabItem Header="{Binding ProblemsLabel}">
