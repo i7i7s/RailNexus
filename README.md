@@ -4,7 +4,7 @@ RailNexus adalah alat untuk mengelola aset Trainz. Tahap 0 (integrasi TrainzUtil
 
 ## Status
 
-Gerbang Tahap 0 telah diuji pada TRS19 build 117026 ([`docs/tahap0.md`](docs/tahap0.md)). Seluruh layar inti (Tahap 1) dan sebagian Tahap 2 sudah dibangun dan diuji dengan simulator: Sambungkan, Pustaka, Mau edit apa?, ganti komponen, dependency, perbaikan, editor, Workshop Tekstur/PBR/Suara, batch, riwayat/undo, dan pengaturan ([`docs/tahap1.md`](docs/tahap1.md)). Aplikasi **belum siap pakai**: tampilan WPF belum pernah dijalankan, perilaku di Trainz asli belum diuji, dan penulisan masih dibatasi ke aset uji. Langkah yang harus dijalankan di Windows: [`docs/handoff-windows.md`](docs/handoff-windows.md). Panduan pengguna: [`docs/panduan.md`](docs/panduan.md). Visi dan rencana produk: [`PRD-RailNexus-v1.2.md`](PRD-RailNexus-v1.2.md).
+Gerbang Tahap 0 telah diuji pada TRS19 build 117026 ([`docs/tahap0.md`](docs/tahap0.md)). Seluruh layar inti (Tahap 1) dan sebagian Tahap 2 sudah dibangun dan diuji dengan simulator: Sambungkan, Pustaka, Mau edit apa?, ganti komponen, dependency, perbaikan, editor, Workshop Tekstur/PBR/Suara, batch, riwayat/undo, dan pengaturan ([`docs/tahap1.md`](docs/tahap1.md)). Aplikasi **belum siap pakai**: tampilan WPF belum pernah dijalankan, perilaku di Trainz asli belum diuji, dan penulisan masih dibatasi ke aset uji. Langkah yang harus dijalankan di Windows: [`TUGAS-AGENT-LOKAL.md`](TUGAS-AGENT-LOKAL.md) (instruksi siap pakai untuk AI agent lokal) dan rinciannya di [`docs/handoff-windows.md`](docs/handoff-windows.md). Panduan pengguna: [`docs/panduan.md`](docs/panduan.md). Visi dan rencana produk: [`PRD-RailNexus-v1.2.md`](PRD-RailNexus-v1.2.md).
 
 ## Persyaratan
 
