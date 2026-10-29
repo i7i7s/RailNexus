@@ -66,9 +66,14 @@
                     <TextBlock Grid.Column="0" Text="{Binding CurrentPage.Title}" Style="{StaticResource Text.H2}" FontSize="18"
                                VerticalAlignment="Center"
                                Visibility="{Binding ActiveAsset, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
-                    <!-- Dengan aset aktif: nama, status, jenis, KUID. -->
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center"
+                    <!-- Dengan aset aktif: thumbnail (bila ada), nama, status, jenis, KUID. -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
                                 Visibility="{Binding ActiveAsset, Converter={StaticResource VisibleWhen}}">
+                    <Border Width="48" Height="36" CornerRadius="6" Background="#DCE5F2" Margin="0,0,12,0" ClipToBounds="True">
+                        <Image Source="{Binding ActiveThumbnail, Converter={StaticResource BytesToImage}}" Stretch="UniformToFill"
+                               AutomationProperties.Name="Thumbnail aset" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding ActiveAsset.Entry.Name}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
                             <ContentControl Content="{Binding ActiveStatus}" Margin="8,0,0,0" Focusable="False" VerticalAlignment="Center" />
@@ -81,6 +86,7 @@
                                        VerticalAlignment="Center" />
                             <Button Style="{StaticResource Button.Link}" Content="Salin KUID" Margin="6,0,0,0" Click="CopyKuid_Click" />
                         </StackPanel>
+                    </StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{Binding ProfileLabel}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,12,0" />

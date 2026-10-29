@@ -87,6 +87,10 @@ public sealed class TxStore
         File.WriteAllBytes(path, bytes);
     }
 
+    /// <summary>Ukuran backup (preimage) sebuah transaksi dalam byte (PRD 21.5).</summary>
+    public long BackupBytes(string id) =>
+        Directory.Exists(PreRoot(id)) ? Directory.EnumerateFiles(PreRoot(id), "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) : 0;
+
     public byte[] ReadPreimage(string id, string relativePath) =>
         File.ReadAllBytes(SafePath.Combine(PreRoot(id), relativePath));
 

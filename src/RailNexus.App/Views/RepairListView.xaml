@@ -1,0 +1,45 @@
+<UserControl x:Class="RailNexus.App.Views.RepairListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Perbaikan: titik masuk dari aset bermasalah -->
+    <DockPanel Margin="24,20">
+        <TextBlock DockPanel.Dock="Top" Text="Perbaikan" Style="{StaticResource Text.H1}" />
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Text.Caption}" Margin="0,4,0,12"
+                   Text="Aset yang menurut indeks bermasalah atau memiliki komponen yang belum tersedia. Pilih satu untuk melihat penyebab dan tindakan." />
+        <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Visibility="{Binding EmptyHint, Converter={StaticResource VisibleWhen}}">
+            <TextBlock Text="{Binding EmptyHint}" Style="{StaticResource Text.Caption}" />
+        </Border>
+        <ListBox Style="{StaticResource List}" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}"
+                 AutomationProperties.Name="Aset bermasalah" Visibility="{Binding Rows.Count, Converter={StaticResource VisibleWhen}}">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding KuidText}" Style="{StaticResource Text.Mono}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ContentControl Content="{Binding Status}" Focusable="False" />
+                            <ItemsControl ItemsSource="{Binding Extra}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ContentControl Content="{Binding}" Margin="6,0,0,0" Focusable="False" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>

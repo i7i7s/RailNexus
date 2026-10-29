@@ -20,6 +20,18 @@ public sealed class TaskCard(string title, string caption, StatusLabel status, s
 
 public sealed record TaskGroup(string Title, IReadOnlyList<TaskCard> Cards);
 
+/// <summary>Tujuan setiap tombol tugas; null = modul belum tersedia dari tempat ini.</summary>
+public sealed record HubActions(
+    Action<IRole> OpenRole,
+    Action Back,
+    Action? OpenHistory = null,
+    Action? OpenEditor = null,
+    Action? OpenTexture = null,
+    Action? OpenDependency = null,
+    Action? OpenRepair = null,
+    Action? OpenSound = null,
+    Action? OpenCargo = null);
+
 /// <summary>UI-03 Pusat edit aset: "Mau edit apa?" berdasarkan isi config aset (PRD 6.1, RN-025).</summary>
 public sealed class EditHubViewModel : ObservableObject, IPage
 {
@@ -28,17 +40,15 @@ public sealed class EditHubViewModel : ObservableObject, IPage
 
     private readonly AppSession _session;
     private readonly AssetWorkspace _workspace;
-    private readonly Action<IRole> _openRole;
-    private readonly Action _back;
+    private readonly HubActions _actions;
     private bool _loading;
     private string? _error;
 
-    public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, Action<IRole> openRole, Action back)
+    public EditHubViewModel(AppSession session, AssetWorkspace workspace, FooterAction footer, HubActions actions)
     {
         _session = session;
         _workspace = workspace;
-        _openRole = openRole;
-        _back = back;
+        _actions = actions;
         Footer = footer;
         RetryCommand = new AsyncCommand(() => LoadAsync(force: true));
         if (workspace.Document is not null) BuildGroups();
@@ -47,7 +57,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     public string Title => "Mau edit apa?";
     public FooterAction Footer { get; }
     public string? BackLabel => "Kembali ke Pustaka";
-    public void Back() => _back();
+    public void Back() => _actions.Back();
 
     public LibraryEntry Asset => _workspace.Entry;
     public ObservableCollection<TaskGroup> Groups { get; } = new();
@@ -70,8 +80,8 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         Error = null;
         try
         {
-            var r = await _session.ConfigReader.ReadConfigAsync(_workspace.Entry.Kuid);
-            if (r.IsSuccess) _workspace.SetConfig(r.Value!);
+            var r = await _session.AssetReader.ReadSnapshotAsync(_workspace.Entry.Kuid);
+            if (r.IsSuccess) _workspace.SetSnapshot(r.Value!);
             else
             {
                 _workspace.SetReadError(r.Message);
@@ -86,31 +96,85 @@ public sealed class EditHubViewModel : ObservableObject, IPage
     {
         Groups.Clear();
         var doc = _workspace.Document;
-        var roleCards = RoleCatalog.P0.ToDictionary(r => r.Id, r => RoleCard(r, doc), StringComparer.OrdinalIgnoreCase);
+        var roleCards = RoleCatalog.All.ToDictionary(r => r.Id, r => RoleCard(r, doc), StringComparer.OrdinalIgnoreCase);
 
-        Groups.Add(new TaskGroup("Suara", [roleCards["hornsound"], roleCards["enginesound"], roleCards["tracksound"]]));
+        Groups.Add(new TaskGroup("Suara", [roleCards["hornsound"], roleCards["enginesound"], roleCards["tracksound"], SoundCard()]));
         Groups.Add(new TaskGroup("Komponen & dependency",
         [
             roleCards["bogie"],
-            new TaskCard("Semua komponen & dependency", "Inventaris referensi per peran", NotYet,
-                "Inventaris dependency belum tersedia di aplikasi."),
+            roleCards["interior"],
+            roleCards["pantograph"],
+            roleCards["enginespec"],
+            CargoCard(doc),
+            DocCard("Semua komponen & dependency", doc is null ? "Inventaris referensi per peran"
+                : $"{RailNexus.Core.Dependencies.DependencyInventory.Collect(doc, _workspace.Entry.Kuid).Count} referensi · status dan turunan",
+                doc, _actions.OpenDependency),
         ]));
         Groups.Add(new TaskGroup("Tampilan, tekstur & model",
         [
-            new TaskCard("Tekstur & material", "Gambar → TGA + .texture.txt", NotYet,
-                "Mesin konversi tekstur sudah ada, tetapi panelnya belum tersedia di aplikasi."),
+            TextureCard(),
             new TaskCard("Lihat model", "Preview geometri dan material", new("P2", Tone.Mute),
                 "Renderer model belum tersedia (PRD 15, P2)."),
         ]));
         Groups.Add(new TaskGroup("Periksa & lanjutan",
         [
-            new TaskCard("Periksa & perbaiki", "Diagnosis dan perbaikan yang dapat dibuktikan", NotYet,
-                "Pusat Perbaikan belum tersedia di versi ini."),
-            new TaskCard("Buka editor lanjutan", "Formulir, struktur, dan teks config", NotYet,
-                "Editor aset lengkap belum tersedia (P1)."),
-            new TaskCard("Riwayat aset ini", "Pekerjaan sebelumnya dan Undo", NotYet,
-                "Riwayat belum tersedia di aplikasi; sementara gunakan 'railnexus list' dan 'railnexus undo' di CLI."),
+            DocCard("Periksa & perbaiki", "Penyebab, bukti, dan tindakan yang tersedia", doc, _actions.OpenRepair),
+            EditorCard(doc),
+            HistoryCard(),
         ]));
+    }
+
+    private TaskCard DocCard(string title, string caption, ConfigDocument? doc, Action? open) =>
+        new(title, caption, new("Terpandu", Tone.Info),
+            doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
+            open is null ? null : new RelayCommand(open));
+
+    private TaskCard CargoCard(ConfigDocument? doc)
+    {
+        const string title = "Produk & muatan";
+        if (doc is null) return new TaskCard(title, "queues", NotApplicable, $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim());
+        var queues = RailNexus.Core.Cargo.QueueInspector.Inspect(doc);
+        if (queues.Count == 0) return new TaskCard(title, "queues", NotApplicable, "Tidak tersedia: aset ini tidak punya antrean muatan.");
+        var conflicts = queues.Sum(q => q.Conflicts.Count);
+        return new TaskCard(title, conflicts > 0 ? $"{queues.Count} antrean · {conflicts} konflik" : $"{queues.Count} antrean",
+            new("Inspeksi/manual", Tone.Mute), null, _actions.OpenCargo is null ? null : new RelayCommand(_actions.OpenCargo));
+    }
+
+    private TaskCard SoundCard()
+    {
+        const string title = "Berkas suara lokal";
+        if (_workspace.Snapshot is not { } snap)
+            return new TaskCard(title, "WAV di dalam aset", NotApplicable, $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim());
+        var n = SoundViewModel.CountAudio(snap);
+        return n == 0
+            ? new TaskCard(title, "WAV di dalam aset", NotApplicable, "Aset ini tidak memiliki berkas suara lokal.")
+            : new TaskCard(title, $"{n} berkas · dengarkan dan ganti", new("Terpandu", Tone.Info), null,
+                _actions.OpenSound is null ? null : new RelayCommand(_actions.OpenSound));
+    }
+
+    private TaskCard TextureCard()
+    {
+        if (_workspace.Snapshot is not { } snap)
+            return new TaskCard("Tekstur & material", "Gambar → TGA + .texture.txt", NotApplicable,
+                $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim());
+        var images = snap.Files.Count(f => RailNexus.Core.Texture.TextureInventory.IsImage(f.RelativePath));
+        var missing = RailNexus.Core.Texture.TextureInventory.Scan(snap, _workspace.Document)
+            .Count(f => f.Kind == RailNexus.Core.Texture.InventoryKind.ImageWithoutMetadata);
+        return new TaskCard("Tekstur & material", missing > 0 ? $"{images} gambar · {missing} tanpa metadata" : $"{images} gambar",
+            new("Terpandu", Tone.Info), null, _actions.OpenTexture is null ? null : new RelayCommand(_actions.OpenTexture));
+    }
+
+    private TaskCard EditorCard(ConfigDocument? doc) =>
+        new("Buka editor lanjutan", "Formulir, struktur, teks, dan perubahan", new("Terbatas", Tone.Info),
+            doc is null ? $"Isi aset belum terbaca. {Error ?? _workspace.ReadError}".Trim() : null,
+            _actions.OpenEditor is null ? null : new RelayCommand(_actions.OpenEditor));
+
+    private TaskCard HistoryCard()
+    {
+        var count = _session.Store.AllTxIds().Select(_session.Store.LoadManifest)
+            .Count(m => m is not null && References.SameAsset(m.Kuid, _workspace.Entry.Kuid));
+        return new TaskCard("Riwayat aset ini", count == 0 ? "Belum ada pekerjaan" : $"{count} pekerjaan · dapat ditinjau dan dibatalkan",
+            new("Tersedia", Tone.Ok), null, _actions.OpenHistory is null ? null : new RelayCommand(_actions.OpenHistory));
     }
 
     private static string RoleTitle(IRole role) => role.Id switch
@@ -119,6 +183,9 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         "enginesound" => "Ganti suara mesin",
         "tracksound" => "Suara roda-rel",
         "bogie" => "Ganti bogie",
+        "interior" => "Ganti interior",
+        "pantograph" => "Ganti pantograf",
+        "enginespec" => "Ganti spesifikasi mesin",
         _ => role.Label,
     };
 
@@ -149,7 +216,7 @@ public sealed class EditHubViewModel : ObservableObject, IPage
         // Tingkat dukungan terlemah di antara slot yang ditampilkan.
         var support = slots.Select(s => s.Support).Max();
         string? reason = support is SupportLevel.NotSupported ? "Peran ini belum didukung untuk struktur aset ini." : null;
-        return new TaskCard(title, caption, Labels.Support(support), reason, new RelayCommand(() => _openRole(role)));
+        return new TaskCard(title, caption, Labels.Support(support), reason, new RelayCommand(() => _actions.OpenRole(role)));
     }
 
     /// <summary>Nama aset dari indeks bila ada (revisi apa pun); bila tidak, KUID apa adanya.</summary>

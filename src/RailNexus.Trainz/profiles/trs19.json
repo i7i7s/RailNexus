@@ -11,6 +11,8 @@
     "Revert": { "args": [ "revert", "{kuid}" ], "verified": true, "evidence": "revert-not-open.json (revert saat aset terbuka belum ditangkap)", "timeoutSeconds": 120 },
     "Validate": { "args": [ "validate", "{kuid}" ], "verified": true, "evidence": "validate-after-commit.json, validate-after-install.json", "timeoutSeconds": 300 },
     "StatusBatch": { "args": [ "filterbystatus", "I" ], "verified": true, "evidence": "filterbystatus-I-3.json (3 KUID → 3 baris berformat sama dengan status). 'status <KUID> [..]' hanya memproses KUID pertama: status-batch-VE.json", "timeoutSeconds": 120 },
-    "ImportFolder": { "args": [ "installfrompath", "{path}" ], "verified": true, "evidence": "install-test-asset-nospace.json; gagal dengan spasi: install-test-asset.json", "timeoutSeconds": 300 }
+    "ImportFolder": { "args": [ "installfrompath", "{path}" ], "verified": true, "evidence": "install-test-asset-nospace.json; gagal dengan spasi: install-test-asset.json", "timeoutSeconds": 300 },
+    "SearchByCategory": { "args": [ "searchbycategory", "{arg}" ], "verified": false, "evidence": "BELUM DIVERIFIKASI. Bentuk keluaran dari searchbycategory-VE.json dan searchbycategory-TV.json (dipotong 40 baris). Verifikasi: docs/handoff-windows.md.", "timeoutSeconds": 300 },
+    "PrintConfig": { "args": [ "printconfig", "{kuid}" ], "verified": false, "evidence": "BELUM DIVERIFIKASI. Dump sukses: printconfig-after-install.json; error 'Asset is not local': printconfig-test-asset.json (penyebab belum dianalisis). Teks dinormalkan Trainz.", "timeoutSeconds": 60 }
   }
 }

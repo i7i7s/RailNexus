@@ -43,6 +43,13 @@
                     </ItemsControl>
                 </WrapPanel>
                 <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
+                <DockPanel Margin="0,0,0,8" Visibility="{Binding CanIndex, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Kategori indeks" Style="{StaticResource Text.H3}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Perbarui indeks" Command="{Binding IndexCommand}" Margin="8,0,0,0" />
+                    <TextBox Text="{Binding IndexCategories, UpdateSourceTrigger=PropertyChanged}" MinHeight="32" Width="160" HorizontalAlignment="Left"
+                             AutomationProperties.Name="Kategori Trainz yang diindeks, dipisah koma" />
+                    <TextBlock Text="{Binding IndexStatus}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </DockPanel>
             </StackPanel>
 
             <!-- Keadaan kosong -->

@@ -14,7 +14,9 @@ public sealed record LibraryEntry(
     bool LocallyModified,
     bool Packaged,
     bool Payware,
-    DateTimeOffset CheckedAt);
+    DateTimeOffset CheckedAt,
+    /// <summary>KIND dari config aset bila sudah dibaca; null = belum diketahui (kategori bukan KIND).</summary>
+    string? Kind = null);
 
 public enum LibraryFilter
 {
@@ -78,6 +80,29 @@ public sealed class LibraryIndex : IDisposable
             CREATE INDEX IF NOT EXISTS ix_assets_missing ON assets(profile, missing_deps, name_key);
             CREATE INDEX IF NOT EXISTS ix_assets_modified ON assets(profile, modified, name_key);
             """);
+        // Migrasi: kolom kind ditambahkan setelah Tahap 0; database lama tetap terbaca.
+        if (!HasColumn("kind")) Exec("ALTER TABLE assets ADD COLUMN kind TEXT;");
+    }
+
+    private bool HasColumn(string name)
+    {
+        using var c = _db.CreateCommand();
+        c.CommandText = "PRAGMA table_info(assets)";
+        using var r = c.ExecuteReader();
+        while (r.Read()) if (r.GetString(1).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    /// <summary>Menyimpan KIND yang dibaca dari config aset (semua revisi dengan identitas yang sama).</summary>
+    public void SetKind(Kuid kuid, string kind)
+    {
+        using var c = _db.CreateCommand();
+        c.CommandText = "UPDATE assets SET kind = $k WHERE profile = $p AND user_id = $u AND content_id = $c";
+        c.Parameters.AddWithValue("$k", kind);
+        c.Parameters.AddWithValue("$p", ProfileId);
+        c.Parameters.AddWithValue("$u", kuid.UserId);
+        c.Parameters.AddWithValue("$c", kuid.ContentId);
+        c.ExecuteNonQuery();
     }
 
     private void Exec(string sql)
@@ -95,15 +120,16 @@ public sealed class LibraryIndex : IDisposable
         c.Transaction = tx;
         c.CommandText = """
             INSERT INTO assets (profile, kuid, user_id, content_id, revision, name, name_key, category, flags, state,
-                                missing_deps, modified, packaged, payware, checked_at)
-            VALUES ($p, $k, $u, $c, $r, $n, $nk, $cat, $f, $s, $m, $l, $b, $pw, $t)
+                                missing_deps, modified, packaged, payware, checked_at, kind)
+            VALUES ($p, $k, $u, $c, $r, $n, $nk, $cat, $f, $s, $m, $l, $b, $pw, $t, $kind)
             ON CONFLICT(profile, kuid) DO UPDATE SET
               name = excluded.name, name_key = excluded.name_key, category = excluded.category, flags = excluded.flags, state = excluded.state,
               missing_deps = excluded.missing_deps, modified = excluded.modified, packaged = excluded.packaged,
-              payware = excluded.payware, checked_at = excluded.checked_at;
+              payware = excluded.payware, checked_at = excluded.checked_at,
+              kind = COALESCE(excluded.kind, assets.kind);
             """;
         var p = new Dictionary<string, SqliteParameter>();
-        foreach (var name in new[] { "$p", "$k", "$u", "$c", "$r", "$n", "$nk", "$cat", "$f", "$s", "$m", "$l", "$b", "$pw", "$t" })
+        foreach (var name in new[] { "$p", "$k", "$u", "$c", "$r", "$n", "$nk", "$cat", "$f", "$s", "$m", "$l", "$b", "$pw", "$t", "$kind" })
             p[name] = c.Parameters.Add(new SqliteParameter { ParameterName = name });
         c.Prepare();
         foreach (var e in entries)
@@ -123,6 +149,7 @@ public sealed class LibraryIndex : IDisposable
             p["$b"].Value = e.Packaged ? 1 : 0;
             p["$pw"].Value = e.Payware ? 1 : 0;
             p["$t"].Value = e.CheckedAt.ToString("O", CultureInfo.InvariantCulture);
+            p["$kind"].Value = (object?)e.Kind ?? DBNull.Value;
             c.ExecuteNonQuery();
         }
         tx.Commit();
@@ -196,7 +223,7 @@ public sealed class LibraryIndex : IDisposable
         var (from, where, order) = BuildQuery(c, q);
 
         c.CommandText = $"""
-            SELECT kuid, name, category, flags, state, missing_deps, modified, packaged, payware, checked_at
+            SELECT kuid, name, category, flags, state, missing_deps, modified, packaged, payware, checked_at, kind
             FROM {from} WHERE {where}
             ORDER BY {order} LIMIT $lim OFFSET $off
             """;
@@ -210,7 +237,8 @@ public sealed class LibraryIndex : IDisposable
             result.Add(new LibraryEntry(
                 Kuid.Parse(r.GetString(0)), r.GetString(1), r.GetString(2), r.GetString(3),
                 (AssetState)r.GetInt32(4), r.GetInt32(5) == 1, r.GetInt32(6) == 1, r.GetInt32(7) == 1, r.GetInt32(8) == 1,
-                DateTimeOffset.Parse(r.GetString(9), CultureInfo.InvariantCulture)));
+                DateTimeOffset.Parse(r.GetString(9), CultureInfo.InvariantCulture),
+                r.IsDBNull(10) ? null : r.GetString(10)));
         }
         return result;
     }

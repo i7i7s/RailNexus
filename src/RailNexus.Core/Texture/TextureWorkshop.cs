@@ -46,34 +46,6 @@ public sealed record TextureSource(
     /// <summary>Gambar mask terpisah untuk key Alpha= di metadata.</summary>
     string? AlphaMaskPath = null);
 
-/// <summary>Pandangan baca-saja atas berkas di folder tujuan (folder edit aset atau folder ekspor).</summary>
-public interface IAssetFileView
-{
-    byte[]? Read(string relativePath);
-}
-
-public sealed class FolderFileView(string root) : IAssetFileView
-{
-    public byte[]? Read(string relativePath)
-    {
-        var p = SafePath.Combine(root, relativePath);
-        return File.Exists(p) ? File.ReadAllBytes(p) : null;
-    }
-}
-
-public sealed class DictionaryFileView(IReadOnlyDictionary<string, byte[]> files) : IAssetFileView
-{
-    public static DictionaryFileView Empty { get; } = new(new Dictionary<string, byte[]>());
-
-    public byte[]? Read(string relativePath)
-    {
-        var key = Normalize(relativePath);
-        return files.FirstOrDefault(kv => Normalize(kv.Key).Equals(key, StringComparison.OrdinalIgnoreCase)).Value;
-    }
-
-    private static string Normalize(string p) => p.Replace('\\', '/');
-}
-
 public enum CollisionKind
 {
     /// <summary>Dua sumber menghasilkan nama output yang sama (AC-18).</summary>
@@ -202,7 +174,7 @@ public sealed class TextureWorkshop(string stagingRoot)
             }
             // Metadata lama bukan benturan: isinya diperbarui dengan key lain dipertahankan.
             foreach (var p in new[] { d.Image, d.Mask }.OfType<string>())
-                if (existing.Read(p) is not null)
+                if (existing.Hash(p) is not null)
                     collisions.Add(new NameCollision(p, CollisionKind.ExistingFile,
                         $"'{p}' sudah ada di tujuan. Pilih ganti (dengan backup), ganti nama, atau lewati."));
             return new TextureTarget(d.Index, d.Source, d.Image, d.Meta, d.Mask, collisions);
@@ -290,7 +262,8 @@ public sealed class TextureWorkshop(string stagingRoot)
             produced.Add(maskFile);
         }
 
-        var (metaFile, metaErr) = BuildMetadata(t, existing, staging, notes);
+        var (metaFile, metaErr) = BuildMetadata(t.MetadataPath, Path.GetFileName(t.ImagePath),
+            t.MaskPath is null ? null : Path.GetFileName(t.MaskPath), existing, staging, notes);
         if (metaFile is null) return (Fail(metaErr, decoded.Description, image.Width, image.Height), []);
         produced.Add(metaFile);
 
@@ -345,8 +318,7 @@ public sealed class TextureWorkshop(string stagingRoot)
         if (!back.Ok) return (null, $"Verifikasi baca ulang gagal: {back.Error}");
         var err = Compare(image, back.Image!, withAlpha);
         if (err is not null) return (null, $"Verifikasi baca ulang gagal: {err}");
-        var current = existing.Read(rel);
-        return (new StagedFile(rel, File.ReadAllBytes(path), current is null ? null : Hashing.Sha256(current), path, summary), "");
+        return (new StagedFile(rel, File.ReadAllBytes(path), existing.Hash(rel), path, summary), "");
     }
 
     internal static string? Compare(RasterImage expected, RasterImage actual, bool alphaKept)
@@ -365,9 +337,10 @@ public sealed class TextureWorkshop(string stagingRoot)
         return null;
     }
 
-    private static (StagedFile? File, string Error) BuildMetadata(TextureTarget t, IAssetFileView existing, string staging, List<string> notes)
+    private static (StagedFile? File, string Error) BuildMetadata(string metadataPath, string imageName, string? maskName,
+        IAssetFileView existing, string staging, List<string> notes)
     {
-        var old = existing.Read(t.MetadataPath);
+        var old = existing.Read(metadataPath);
         TextureMetadata meta;
         if (old is null)
         {
@@ -380,15 +353,13 @@ public sealed class TextureWorkshop(string stagingRoot)
             meta = parsed;
         }
 
-        var imageName = Path.GetFileName(t.ImagePath);
         var oldPrimary = meta.Get("Primary");
         meta.Set("Primary", imageName);
         if (old is not null && oldPrimary is not null && !oldPrimary.Equals(imageName, StringComparison.OrdinalIgnoreCase))
             notes.Add($"Metadata: Primary {oldPrimary} → {imageName}.");
 
-        if (t.MaskPath is not null)
+        if (maskName is not null)
         {
-            var maskName = Path.GetFileName(t.MaskPath);
             var oldAlpha = meta.Get("Alpha");
             meta.Set("Alpha", maskName);
             if (oldAlpha is not null && !oldAlpha.Equals(maskName, StringComparison.OrdinalIgnoreCase))
@@ -397,9 +368,9 @@ public sealed class TextureWorkshop(string stagingRoot)
         else if (meta.Get("Alpha") is { Length: > 0 } keptAlpha)
         {
             // Alpha lama dipertahankan sampai pengguna memilih penggantian yang jelas (PRD 13.4 langkah 5).
-            var dir = Path.GetDirectoryName(t.MetadataPath.Replace('\\', '/'))?.Replace('\\', '/');
+            var dir = Path.GetDirectoryName(metadataPath.Replace('\\', '/'))?.Replace('\\', '/');
             var rel = string.IsNullOrEmpty(dir) ? keptAlpha : dir + "/" + keptAlpha;
-            notes.Add(existing.Read(rel) is null
+            notes.Add(existing.Hash(rel) is null
                 ? $"Metadata lama memuat Alpha={keptAlpha}, tetapi berkas itu tidak ditemukan. Periksa sebelum menerapkan."
                 : $"Alpha={keptAlpha} dari metadata lama dipertahankan.");
         }
@@ -411,11 +382,11 @@ public sealed class TextureWorkshop(string stagingRoot)
 
         var bytes = meta.ToBytes();
         if (old is not null && bytes.AsSpan().SequenceEqual(old)) notes.Add("Metadata lama sudah sesuai; tidak berubah.");
-        var path = SafePath.Combine(Path.Combine(staging, "out"), t.MetadataPath);
+        var path = SafePath.Combine(Path.Combine(staging, "out"), metadataPath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, bytes);
-        return (new StagedFile(t.MetadataPath, bytes, old is null ? null : Hashing.Sha256(old), path,
-            old is null ? $"{t.MetadataPath} dibuat" : $"{t.MetadataPath} diperbarui"), "");
+        return (new StagedFile(metadataPath, bytes, old is null ? null : Hashing.Sha256(old), path,
+            old is null ? $"{metadataPath} dibuat" : $"{metadataPath} diperbarui"), "");
     }
 
     /// <summary>Menyalin sumber ke staging dan memastikan salinan identik.</summary>
@@ -439,6 +410,90 @@ public sealed class TextureWorkshop(string stagingRoot)
     {
         try { return Hashing.Sha256(File.ReadAllBytes(path)) == hash; }
         catch (IOException) { return false; }
+    }
+
+    /// <summary>
+    /// Menulis gambar hasil rakitan (mis. perakit kanal PBR) melalui jalur yang sama: benturan nama,
+    /// staging, baca ulang per kanal, dan metadata. Output selalu 32-bit karena kanal alpha berisi data.
+    /// </summary>
+    public TexturePrepareResult PrepareImage(RasterImage image, string outputName, string description, IAssetFileView existing,
+        string targetDirectory = "", CollisionChoice collision = CollisionChoice.Unresolved)
+    {
+        var source = new TextureSource(outputName + ".rakitan", TextureRole.Parameter, AlphaChoice.Keep, outputName, collision);
+        var targets = PlanNames([source], existing, targetDirectory);
+        var unresolved = targets.SelectMany(t => t.Unresolved).ToList();
+        if (unresolved.Count > 0)
+            return new TexturePrepareResult(false, $"{unresolved.Count} benturan nama belum diselesaikan. Tidak ada berkas yang dibuat.", targets, [], [], null);
+        var t = targets[0];
+        if (t.Skipped)
+            return new TexturePrepareResult(true, "Dilewati.", targets, [new TextureItemResult(t, TextureItemStatus.Skipped, description, image.Width, image.Height, null, [])], [], null);
+
+        var staging = Path.Combine(stagingRoot, $"{DateTime.UtcNow:yyyyMMddTHHmmss}-{Guid.NewGuid().ToString("N")[..8]}");
+        Directory.CreateDirectory(Path.Combine(staging, "out"));
+        var notes = new List<string>();
+        var (imageFile, err) = WriteVerified(t.ImagePath, image, withAlpha: true, existing, staging, $"{description} → {t.ImagePath} (32-bit)");
+        if (imageFile is null)
+            return new TexturePrepareResult(true, err, targets, [new TextureItemResult(t, TextureItemStatus.Failed, description, image.Width, image.Height, null, notes, err)], [], staging);
+        var (meta, metaErr) = BuildMetadata(t.MetadataPath, Path.GetFileName(t.ImagePath), null, existing, staging, notes);
+        if (meta is null)
+            return new TexturePrepareResult(true, metaErr, targets, [new TextureItemResult(t, TextureItemStatus.Failed, description, image.Width, image.Height, null, notes, metaErr)], [], staging);
+        return new TexturePrepareResult(true, "1 gambar rakitan siap; setiap kanal dibaca ulang dan cocok.", targets,
+            [new TextureItemResult(t, TextureItemStatus.Ready, description, image.Width, image.Height, 32, notes)], [imageFile, meta], staging);
+    }
+
+    /// <summary>
+    /// Alur B (PRD 13.4): membuat atau memperbarui <c>.texture.txt</c> untuk gambar yang sudah ada di aset,
+    /// tanpa mengonversi gambarnya. Gambar harus dapat dibaca agar metadata tidak menunjuk berkas rusak.
+    /// </summary>
+    public TexturePrepareResult PrepareMetadata(IReadOnlyList<string> imagePaths, IAssetFileView existing)
+    {
+        var staging = Path.Combine(stagingRoot, $"{DateTime.UtcNow:yyyyMMddTHHmmss}-{Guid.NewGuid().ToString("N")[..8]}");
+        Directory.CreateDirectory(Path.Combine(staging, "out"));
+        var targets = new List<TextureTarget>();
+        var items = new List<TextureItemResult>();
+        var files = new List<StagedFile>();
+        foreach (var (rel, index) in imagePaths.Select((p, i) => (p.Replace('\\', '/'), i)))
+        {
+            var dir = Path.GetDirectoryName(rel)?.Replace('\\', '/') is { Length: > 0 } folder ? folder + "/" : "";
+            var stem = Path.GetFileNameWithoutExtension(rel);
+            var t = new TextureTarget(index, new TextureSource(rel, TextureRole.Generic), rel, dir + stem + MetadataExtension, null, []);
+            targets.Add(t);
+            var notes = new List<string>();
+            if (existing.Hash(rel) is null)
+            {
+                items.Add(new TextureItemResult(t, TextureItemStatus.Failed, "", 0, 0, null, notes, $"'{rel}' tidak ada di aset."));
+                continue;
+            }
+            byte[]? bytes;
+            try { bytes = existing.Read(rel); }
+            catch (NotSupportedException) { bytes = null; }
+            var desc = "";
+            int w = 0, h = 0;
+            if (bytes is null) notes.Add("Isi gambar tidak tersedia untuk diperiksa (terlalu besar); hanya keberadaannya yang dipastikan.");
+            else
+            {
+                var d = ImageCodec.Decode(bytes);
+                if (!d.Ok && d.Format is ImageFormat.Unknown)
+                {
+                    items.Add(new TextureItemResult(t, TextureItemStatus.Failed, "", 0, 0, null, notes, $"'{rel}' bukan gambar yang dikenali: {d.Error}"));
+                    continue;
+                }
+                desc = d.Ok ? d.Description : d.Format.ToString().ToUpperInvariant();
+                (w, h) = d.Ok ? (d.Image!.Width, d.Image.Height) : (0, 0);
+                if (!d.Ok) notes.Add($"Format {desc} dikenali tetapi isinya belum dapat diperiksa RailNexus.");
+            }
+            notes.Add("Penerimaan format gambar ini oleh build tujuan belum diuji; validasi Trainz setelah menerapkan.");
+            var (meta, err) = BuildMetadata(t.MetadataPath, Path.GetFileName(rel), null, existing, staging, notes);
+            if (meta is null)
+            {
+                items.Add(new TextureItemResult(t, TextureItemStatus.Failed, desc, w, h, null, notes, err));
+                continue;
+            }
+            files.Add(meta);
+            items.Add(new TextureItemResult(t, TextureItemStatus.Ready, desc, w, h, null, notes));
+        }
+        var ready = items.Count(i => i.Status == TextureItemStatus.Ready);
+        return new TexturePrepareResult(true, $"{ready} metadata siap, {items.Count - ready} gagal.", targets, items, files, staging);
     }
 
     /// <summary>

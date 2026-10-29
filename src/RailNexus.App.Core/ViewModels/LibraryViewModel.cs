@@ -39,6 +39,8 @@ public sealed class LibraryViewModel : ObservableObject, IPage
     private AssetRow? _selected;
     private long _total;
     private long _matching;
+    private string _indexCategories = "TV, VE";
+    private string? _indexStatus;
 
     public LibraryViewModel(AppSession session, Action<LibraryEntry> open)
     {
@@ -48,6 +50,7 @@ public sealed class LibraryViewModel : ObservableObject, IPage
         SelectFilterCommand = new ParamCommand<FilterChip>(chip => { ActiveFilter = chip.Filter; Refresh(); });
         OpenCommand = new RelayCommand(() => { if (Selected is not null) _open(Selected.Entry); }, () => Selected is not null);
         Footer = new FooterAction("Mau ubah apa?", OpenCommand, () => Selected is null ? "Pilih aset dari daftar." : $"Aset terpilih: {Selected.Name}");
+        IndexCommand = new AsyncCommand(IndexAsync, () => _session.Indexer is not null);
         Refresh();
     }
 
@@ -78,6 +81,12 @@ public sealed class LibraryViewModel : ObservableObject, IPage
     }
 
     public ParamCommand<FilterChip> SelectFilterCommand { get; }
+    public AsyncCommand IndexCommand { get; }
+    public bool CanIndex => _session.Indexer is not null;
+
+    /// <summary>Kategori Trainz yang diindeks, dipisah koma (mis. "TV, VE").</summary>
+    public string IndexCategories { get => _indexCategories; set => Set(ref _indexCategories, value ?? ""); }
+    public string? IndexStatus { get => _indexStatus; private set => Set(ref _indexStatus, value); }
     public RelayCommand OpenCommand { get; }
 
     public string Summary => _total == 0 ? "Indeks kosong"
@@ -90,9 +99,21 @@ public sealed class LibraryViewModel : ObservableObject, IPage
         : "Tidak ada aset yang cocok.";
 
     public string? EmptyHint => Results.Count > 0 ? null
-        : _total == 0 ? "Pengindeksan dari aplikasi belum tersedia. Sementara itu jalankan perintah 'railnexus index' di CLI, lalu buka Pustaka lagi."
+        : _total == 0 ? (CanIndex ? "Isi kategori lalu pilih Perbarui indeks. Bila perintahnya belum terverifikasi untuk build ini, jalankan 'railnexus index' di CLI."
+                                  : "Jalankan perintah 'railnexus index' di CLI, lalu buka Pustaka lagi.")
         : Kuid.TryParse(SearchText, out _) ? "KUID ini tidak ada di indeks profil ini. Indeks mungkin belum diperbarui."
         : "Periksa ejaan, hapus filter status, atau tempel KUID lengkap seperti <kuid:123:456>.";
+
+    private async Task IndexAsync()
+    {
+        if (_session.Indexer is not { } indexer) return;
+        var categories = IndexCategories.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (categories.Length == 0) { IndexStatus = "Tulis minimal satu kategori, mis. TV."; return; }
+        IndexStatus = "Memperbarui indeks…";
+        var result = await indexer.IndexAsync(categories, new Progress<string>(m => IndexStatus = m));
+        IndexStatus = result.Message;
+        Refresh();
+    }
 
     public void Refresh()
     {

@@ -57,7 +57,7 @@ public sealed partial class TrainzUtilAdapter(TrainzUtilOptions options, IProces
     [GeneratedRegex(@"^\+?\s*<[^>]+>\s:\s(?<path>[A-Za-z]:[\\/].*)$")]
     private static partial Regex EditPathRe();
 
-    public async Task<OpResult<RawOutput>> RunAsync(TrainzOp op, Kuid? kuid = null, string? path = null, CancellationToken ct = default)
+    public async Task<OpResult<RawOutput>> RunAsync(TrainzOp op, Kuid? kuid = null, string? path = null, CancellationToken ct = default, string? arg = null)
     {
         if (!options.Profile.Commands.TryGetValue(op, out var spec))
             return OpResult<RawOutput>.Unsupported($"Profil {options.Profile.Id} tidak memiliki perintah untuk {op}.");
@@ -71,7 +71,7 @@ public sealed partial class TrainzUtilAdapter(TrainzUtilOptions options, IProces
         }
 
         var args = spec.Args
-            .Select(a => a.Replace("{kuid}", kuid?.ToString() ?? "").Replace("{path}", path ?? ""))
+            .Select(a => a.Replace("{kuid}", kuid?.ToString() ?? "").Replace("{path}", path ?? "").Replace("{arg}", arg ?? ""))
             .ToList();
         var raw = await runner.RunAsync(options.TrainzUtilPath, args, spec.Timeout, ct).ConfigureAwait(false);
         OnRaw?.Invoke(op, raw);
@@ -264,4 +264,23 @@ public sealed partial class TrainzUtilAdapter(TrainzUtilOptions options, IProces
     private static extern uint GetShortPathNameW(string longPath, [Out] char[] shortPath, uint bufferLength);
 
     internal static AssetState ParseState(string flags) => new StatusFlags(flags).ToState();
+
+    /// <summary>KUID aset lokal dalam satu kategori. Hanya Success bila perintahnya terverifikasi di profil.</summary>
+    public async Task<OpResult<IReadOnlyList<Kuid>>> SearchCategoryAsync(string category, CancellationToken ct = default)
+    {
+        var r = await RunAsync(TrainzOp.SearchByCategory, ct: ct, arg: category).ConfigureAwait(false);
+        return r.IsSuccess ? OpResult<IReadOnlyList<Kuid>>.Ok(TrainzOutputParsers.SearchCategory(r.Value!), r.Raw) : r.Map<IReadOnlyList<Kuid>>(_ => []);
+    }
+
+    /// <summary>
+    /// Teks config lewat printconfig (baca saja, tidak membuka edit). Teks ini dinormalkan Trainz,
+    /// jadi tidak dipakai sebagai dasar hash transaksi.
+    /// </summary>
+    public async Task<OpResult<string>> PrintConfigAsync(Kuid kuid, CancellationToken ct = default)
+    {
+        var r = await RunAsync(TrainzOp.PrintConfig, kuid, ct: ct).ConfigureAwait(false);
+        if (!r.IsSuccess) return r.Map(_ => "");
+        var text = TrainzOutputParsers.PrintConfig(r.Value!);
+        return text is null ? OpResult<string>.Unknown("Keluaran printconfig tidak memuat dump lengkap.", r.Raw) : OpResult<string>.Ok(text, r.Raw);
+    }
 }

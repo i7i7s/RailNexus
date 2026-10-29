@@ -20,7 +20,18 @@ public abstract record DraftItem(string Module, string Summary)
     public sealed record WriteFile(string RelativePath, byte[] Bytes, string? BaseHash, string Module, string Summary)
         : DraftItem(Module, Summary);
 
-    public bool ChangesConfig => this is ReplaceKuid or SetText;
+    /// <summary>Menambah satu entri kuid-table (aturan perbaikan R001); nama entri lain tidak disentuh.</summary>
+    public sealed record AddKuidTableEntry(Kuid Kuid, string Module, string Summary)
+        : DraftItem(Module, Summary);
+
+    /// <summary>
+    /// Teks config hasil editor teks (P1). Diterapkan pertama terhadap teks yang hash-nya sama dengan
+    /// <paramref name="BaseTextHash"/>; perubahan lain di draft diterapkan di atasnya.
+    /// </summary>
+    public sealed record ReplaceConfigText(string NewText, string BaseTextHash, string Module, string Summary)
+        : DraftItem(Module, Summary);
+
+    public bool ChangesConfig => this is ReplaceKuid or SetText or AddKuidTableEntry or ReplaceConfigText;
 }
 
 public sealed record DraftBuild(
@@ -46,8 +57,12 @@ public sealed class Draft(Kuid asset)
     public void Put(DraftItem item)
     {
         _items.RemoveAll(i => SameTarget(i, item));
-        _items.Add(item);
+        // Teks utuh selalu menjadi dasar; perubahan terarah lain diterapkan sesudahnya.
+        if (item is DraftItem.ReplaceConfigText) _items.Insert(0, item);
+        else _items.Add(item);
     }
+
+    public static string TextHash(string text) => Hashing.Sha256(Encoding.UTF8.GetBytes(text));
 
     public bool Remove(DraftItem item) => _items.Remove(item);
 
@@ -56,6 +71,8 @@ public sealed class Draft(Kuid asset)
         (DraftItem.ReplaceKuid x, DraftItem.ReplaceKuid y) => x.SlotPath.Equals(y.SlotPath, StringComparison.OrdinalIgnoreCase),
         (DraftItem.SetText x, DraftItem.SetText y) => x.Path.Equals(y.Path, StringComparison.OrdinalIgnoreCase),
         (DraftItem.WriteFile x, DraftItem.WriteFile y) => SamePath(x.RelativePath, y.RelativePath),
+        (DraftItem.AddKuidTableEntry x, DraftItem.AddKuidTableEntry y) => References.SameAsset(x.Kuid, y.Kuid),
+        (DraftItem.ReplaceConfigText, DraftItem.ReplaceConfigText) => true,
         _ => false,
     };
 
@@ -99,6 +116,38 @@ public sealed class Draft(Kuid asset)
                     if (!e.Ok) return Fail($"{s.Summary}: {e.Message}");
                     text = ConfigEditor.Apply(text, [e.Edit!]);
                     handled.Add($"{s.Summary} di '{s.Path}'");
+                    break;
+                }
+                case DraftItem.AddKuidTableEntry a:
+                {
+                    var tables = doc.Root.Named("kuid-table").Where(t => t.Container is not null).ToList();
+                    if (doc.HasErrors || tables.Count != 1 || tables[0].Container!.Close is null)
+                        return Fail($"{a.Summary}: kuid-table tidak ada, ganda, atau tidak ditutup.");
+                    var table = tables[0].Container!;
+                    if (table.Children.Any(c => c.Value?.Kuid is { } k && References.SameAsset(k, a.Kuid)))
+                    {
+                        handled.Add($"{a.Kuid} sudah tercantum di kuid-table; tidak ada yang ditambahkan.");
+                        break;
+                    }
+                    var name = ModificationEngine.NextFreeName(table);
+                    var add = ConfigEditor.AppendTag(doc, table, name, a.Kuid.ToString(), a.Summary);
+                    if (!add.Ok) return Fail($"{a.Summary}: {add.Message}");
+                    text = ConfigEditor.Apply(text, [add.Edit!]);
+                    handled.Add($"kuid-table: entri '{name}' {a.Kuid} ditambahkan");
+                    break;
+                }
+                case DraftItem.ReplaceConfigText t:
+                {
+                    if (TextHash(text) != t.BaseTextHash)
+                        return Fail($"{t.Summary}: config berubah sejak teks disunting. Buka editor dan sunting ulang dari isi terbaru.");
+                    var edited = ConfigDocument.Parse(t.NewText);
+                    if (edited.HasErrors)
+                    {
+                        var first = edited.Diagnostics.First(d => d.Severity == Severity.Error);
+                        return Fail($"{t.Summary}: teks memiliki error struktur (baris {first.Line}: {first.Message}).");
+                    }
+                    text = t.NewText;
+                    handled.Add($"{t.Summary} ({LineDiff.Compare(originalText, t.NewText).Count(l => l.Kind != DiffKind.Same)} baris berubah)");
                     break;
                 }
                 case DraftItem.WriteFile f:

@@ -3,6 +3,7 @@ using RailNexus.Core;
 using RailNexus.Core.Config;
 using RailNexus.Core.Process;
 using RailNexus.Core.Roles;
+using RailNexus.Core.Texture;
 using RailNexus.Core.Tx;
 using RailNexus.Trainz;
 
@@ -33,6 +34,7 @@ try
         "parse-check" => await ParseCheck(),
         "list" => ListTx(),
         "reconcile" => await Reconcile(),
+        "texture" => await Texture(),
         _ => Usage(),
     };
 }
@@ -220,6 +222,68 @@ async Task<int> Cycle()
     return ok ? 0 : 1;
 }
 
+/// <summary>
+/// Workshop tekstur pada aset uji (RN-009): gambar → TGA + .texture.txt lewat transaksi, periksa isi
+/// terpasang byte demi byte, lalu undo. Hanya untuk aset uji bertanda Tahap 0.
+/// </summary>
+async Task<int> Texture()
+{
+    var kuid = RequireKuid();
+    if (opts.GetValueOrDefault("src") is not { } src) return Usage("texture --kuid <kuid> --src <gambar> [--role color|normal|parameter|generic] [--name <nama>] [--dir <subfolder>] [--replace] [--no-undo]");
+    if (!Enum.TryParse<TextureRole>(opts.GetValueOrDefault("role") ?? "color", ignoreCase: true, out var role)) return Usage("texture … --role color|normal|parameter|generic");
+    var adapter = CreateAdapter(kuid);
+    var store = new TxStore(storeRoot);
+    var source = new TextureSource(Path.GetFullPath(src), role, OutputName: opts.GetValueOrDefault("name"),
+        Collision: opts.ContainsKey("replace") ? CollisionChoice.Replace : CollisionChoice.Unresolved);
+
+    // Siapkan terhadap isi terpasang: buka edit, baca, tutup kembali. Penulisan baru terjadi di transaksi.
+    var open = await adapter.BeginEditAsync(kuid);
+    Report("baca (edit)", open.Outcome, open.Message, open.Raw);
+    if (!open.IsSuccess) return 1;
+    var config = await File.ReadAllTextAsync(SafePath.Combine(open.Value!, "config.txt"));
+    var prepared = config.Contains(TestAssetFactory.Marker)
+        ? new TextureWorkshop(Path.Combine(storeRoot, "staging")).Prepare([source], new FolderFileView(open.Value!), opts.GetValueOrDefault("dir") ?? "")
+        : null;
+    var rv = await adapter.RevertAsync(kuid);
+    Report("tutup baca (revert)", rv.Outcome, rv.Message, rv.Raw);
+    if (!rv.IsSuccess) return 1;
+    if (prepared is null)
+    {
+        Console.Error.WriteLine("Config tidak memuat penanda aset uji. Workshop tekstur dihentikan untuk melindungi aset ini.");
+        return 2;
+    }
+
+    Console.WriteLine(prepared.Message);
+    foreach (var t in prepared.Targets)
+    foreach (var c in t.Collisions) Console.WriteLine($"  benturan: {c.Message}");
+    foreach (var i in prepared.Items)
+    {
+        Console.WriteLine($"  {Path.GetFileName(i.Target.Source.SourcePath)}: {i.Status} {i.SourceDescription} {i.Width}×{i.Height} → {i.Target.ImagePath} {i.OutputBits?.ToString() ?? "-"}-bit {i.Error}");
+        foreach (var n in i.Notes) Console.WriteLine("    " + n);
+    }
+    if (!prepared.Ok || prepared.Files.Count == 0) return 1;
+    Console.WriteLine($"  staging: {Corpus.Redact(prepared.StagingFolder!)}");
+
+    var tx = new TransactionRunner(adapter, store);
+    var applied = await tx.ApplyAsync(prepared.ToEditPlan(kuid, $"Workshop tekstur: {Path.GetFileName(src)}"));
+    PrintTx("terapkan", applied, store);
+    if (applied.Status is not (TxStatus.Succeeded or TxStatus.SucceededWithWarnings)) return 1;
+
+    // Isi terpasang harus identik dengan berkas staging yang sudah diverifikasi.
+    var check = await adapter.BeginEditAsync(kuid);
+    if (!check.IsSuccess) { Report("baca ulang", check.Outcome, check.Message, check.Raw); return 1; }
+    var same = prepared.Files.All(f => File.Exists(SafePath.Combine(check.Value!, f.RelativePath))
+                                       && File.ReadAllBytes(SafePath.Combine(check.Value!, f.RelativePath)).AsSpan().SequenceEqual(f.Bytes));
+    var rv2 = await adapter.RevertAsync(kuid);
+    if (!rv2.IsSuccess) Report("tutup baca ulang", rv2.Outcome, rv2.Message, rv2.Raw);
+    Console.WriteLine($"  isi terpasang identik dengan hasil staging: {same}");
+
+    if (opts.ContainsKey("no-undo")) return same ? 0 : 1;
+    var undone = await tx.UndoAsync(applied.TxId);
+    PrintTx("undo", undone, store);
+    return same && undone.Status is TxStatus.Succeeded or TxStatus.SucceededWithWarnings ? 0 : 1;
+}
+
 int ListTx()
 {
     var store = new TxStore(storeRoot);
@@ -346,7 +410,7 @@ async Task<int> ParseCheck()
     var runner = new ProcessRunner();
     int parsed = 0, withErrors = 0, unreadable = 0;
     var codes = new Dictionary<string, int>();
-    var roleHits = RoleCatalog.P0.ToDictionary(r => r.Id, _ => 0);
+    var roleHits = RoleCatalog.All.ToDictionary(r => r.Id, _ => 0);
     var examples = new List<string>();
     var unreadableReasons = new Dictionary<string, int>();
     foreach (var k in kuids)
@@ -366,7 +430,7 @@ async Task<int> ParseCheck()
         parsed++;
         if (doc.HasErrors) withErrors++;
         foreach (var d in doc.Diagnostics) codes[d.Code] = codes.GetValueOrDefault(d.Code) + 1;
-        foreach (var role in RoleCatalog.P0)
+        foreach (var role in RoleCatalog.All)
             if (role.Locate(doc).Any()) roleHits[role.Id]++;
         // Contoh diagnosis dengan potongan baris (dipendekkan) agar penyebab dapat dianalisis; hanya ditampilkan.
         var textLines = text.Split('\n');
@@ -388,16 +452,7 @@ async Task<int> ParseCheck()
     return 0;
 }
 
-static string? ExtractPrintConfig(RawOutput raw)
-{
-    var lines = TuResponse.Parse(raw).Lines.Where(x => x.Kind == LineKind.Log).Select(x => x.Message).ToList();
-    var start = lines.FindIndex(x => x.StartsWith("+ Start of", StringComparison.Ordinal));
-    var end = lines.FindIndex(x => x.StartsWith("+ End of", StringComparison.Ordinal));
-    if (start < 0 || end <= start) return null;
-    var body = lines.Skip(start + 1).Take(end - start - 1).ToList();
-    if (body.Count > 0 && body[0].Trim('﻿', '?', ' ').Length == 0) body.RemoveAt(0);
-    return string.Join("\n", body) + "\n";
-}
+static string? ExtractPrintConfig(RawOutput raw) => TrainzOutputParsers.PrintConfig(raw);
 
 async Task<int> Undo()
 {
@@ -537,6 +592,9 @@ static int Usage(string? hint = null)
           index [--category TV,CMP]           Isi indeks pustaka dari Trainz (baca saja)
           parse-check [--category TV] [--limit 40]  Uji parser pada config asli (baca saja, isi tidak disimpan)
           reconcile [txid...]                 Pulihkan transaksi yang belum ditutup (crash/timeout)
+          texture --kuid <kuid> --src <gambar> [--role color|normal|parameter|generic] [--name <nama>]
+                  [--dir <subfolder>] [--replace] [--no-undo]
+                                              Gambar → TGA + .texture.txt pada aset uji, periksa, lalu undo
 
         Opsi umum: --trainz <folder>  --profile <json>  --store <folder>  --corpus <folder>
         Operasi tulis hanya berjalan untuk --kuid aset uji dan untuk perintah yang sudah terverifikasi di profil.

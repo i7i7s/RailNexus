@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using RailNexus.Core.Texture;
 using RailNexus.App.Core;
 
 namespace RailNexus.App;
@@ -49,6 +51,70 @@ public sealed class VisibleWhenConverter : IValueConverter
         };
         if (parameter as string == "invert") visible = !visible;
         return visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Enum ↔ indeks, untuk TabControl.SelectedIndex.</summary>
+public sealed class EnumIndexConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is Enum e ? System.Convert.ToInt32(e, CultureInfo.InvariantCulture) : 0;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is int i && parameter is Type t ? Enum.ToObject(t, i) : Binding.DoNothing;
+}
+
+/// <summary>RasterImage (RGBA, atas ke bawah) → BitmapSource BGRA untuk preview; tidak mengubah data sumber.</summary>
+public sealed class RasterToBitmapConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not RasterImage img) return null;
+        var bgra = new byte[img.Rgba.Length];
+        for (var i = 0; i < bgra.Length; i += 4)
+        {
+            bgra[i] = img.Rgba[i + 2];
+            bgra[i + 1] = img.Rgba[i + 1];
+            bgra[i + 2] = img.Rgba[i];
+            bgra[i + 3] = img.Rgba[i + 3];
+        }
+        var bmp = BitmapSource.Create(img.Width, img.Height, 96, 96, PixelFormats.Bgra32, null, bgra, img.Width * 4);
+        bmp.Freeze();
+        return bmp;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>true bila nilai tidak null (mis. tombol aktif hanya bila tindakannya tersedia).</summary>
+public sealed class HasValueConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not null;
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Byte gambar (JPG/PNG) → BitmapImage untuk thumbnail; null bila tidak dapat didekode.</summary>
+public sealed class BytesToImageConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not byte[] { Length: > 0 } bytes) return null;
+        try
+        {
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.CacheOption = BitmapCacheOption.OnLoad;
+            img.StreamSource = new System.IO.MemoryStream(bytes);
+            img.EndInit();
+            img.Freeze();
+            return img;
+        }
+        catch (Exception ex) when (ex is NotSupportedException or System.IO.IOException or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();

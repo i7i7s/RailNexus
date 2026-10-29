@@ -1,0 +1,140 @@
+<UserControl x:Class="RailNexus.App.Views.TextureView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RailNexus.App.Core.ViewModels;assembly=RailNexus.App.Core"
+             AllowDrop="True" Drop="OnDrop">
+    <!-- UI-14 konversi + UI-15 metadata -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24,20">
+            <TextBlock Text="Workshop Tekstur" Style="{StaticResource Text.H1}" />
+            <TextBlock Text="{Binding ModeText}" Style="{StaticResource Text.Caption}" Margin="0,4,0,12" />
+
+            <!-- Antrean gambar -->
+            <Border Style="{StaticResource Card}" BorderThickness="1" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Tambah gambar…" Click="AddFiles_Click" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Perakit PBR…" Command="{Binding OpenPbrCommand}" Margin="0,0,8,0" />
+                        <StackPanel>
+                            <TextBlock Text="Gambar sumber" Style="{StaticResource Text.H2}" />
+                            <TextBlock Style="{StaticResource Text.Caption}"
+                                       Text="Seret berkas ke sini atau pilih. Format dikenali dari isi berkas; sumber tidak pernah diubah." />
+                        </StackPanel>
+                    </DockPanel>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Subfolder tujuan" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBox Grid.Column="1" Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                 AutomationProperties.Name="Subfolder tujuan, kosongkan untuk akar aset" />
+                    </Grid>
+                    <DockPanel Margin="0,8,0,0" Visibility="{Binding IsAssetMode, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Base}" Content="Pilih folder tujuan…" Click="PickExport_Click" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding ExportFolder, TargetNullValue='Folder tujuan belum dipilih'}" Style="{StaticResource Text.Mono}" VerticalAlignment="Center" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Items}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="112" Height="112" Background="{StaticResource Brush.Checker}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1"
+                                        VerticalAlignment="Top">
+                                    <Image Source="{Binding Preview, Converter={StaticResource RasterToBitmap}}" Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Preview gambar" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Hapus dari antrean" Click="Remove_Click" />
+                                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
+                                    </DockPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                                        <TextBlock Style="{StaticResource Text.Caption}" VerticalAlignment="Center">
+                                            <Run Text="{Binding Format, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Size, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <ContentControl Content="{Binding AlphaLabel}" Margin="8,0,0,0" Focusable="False" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding DecodeError}" Foreground="#A3201A" TextWrapping="Wrap"
+                                               Visibility="{Binding DecodeError, Converter={StaticResource VisibleWhen}}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,8,0">
+                                            <TextBlock Text="Tujuan gambar" Style="{StaticResource Text.H3}" />
+                                            <ComboBox ItemsSource="{x:Static vm:TextureSourceItem.RoleOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Role}" MinHeight="36" AutomationProperties.Name="Tujuan gambar" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                            <TextBlock Text="Alpha" Style="{StaticResource Text.H3}" />
+                                            <ComboBox ItemsSource="{x:Static vm:TextureSourceItem.AlphaOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Alpha}" MinHeight="36" AutomationProperties.Name="Perlakuan alpha" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Nama output (tanpa .tga)" Style="{StaticResource Text.H3}" />
+                                            <TextBox Text="{Binding OutputName, UpdateSourceTrigger=PropertyChanged, Delay=300}" MinHeight="36"
+                                                     AutomationProperties.Name="Nama output" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <!-- Benturan nama: pilihan dicatat sebelum penerapan (AC-18). -->
+                                    <Border Margin="0,8,0,0" Padding="10" CornerRadius="6" Background="#FBEFD5"
+                                            Visibility="{Binding CollisionText, Converter={StaticResource VisibleWhen}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding CollisionText}" Foreground="#784C00" TextWrapping="Wrap" />
+                                            <ComboBox ItemsSource="{x:Static vm:TextureSourceItem.CollisionOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Collision}" MinHeight="32" Margin="0,6,0,0" HorizontalAlignment="Left" MinWidth="260"
+                                                      AutomationProperties.Name="Pilihan untuk benturan nama" />
+                                        </StackPanel>
+                                    </Border>
+                                    <StackPanel Margin="0,8,0,0" Visibility="{Binding ResultStatus, Converter={StaticResource VisibleWhen}}">
+                                        <ContentControl Content="{Binding ResultStatus}" Focusable="False" />
+                                        <TextBlock Text="{Binding ResultText}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,12" FontWeight="SemiBold"
+                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
+
+            <!-- UI-15 metadata gambar yang sudah ada di aset -->
+            <Border Style="{StaticResource Card}" Visibility="{Binding Inventory.Count, Converter={StaticResource VisibleWhen}}">
+                <StackPanel>
+                    <TextBlock Text="Metadata gambar di aset" Style="{StaticResource Text.H2}" />
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="0,4,0,8"
+                               Text="Gambar yang belum punya .texture.txt dapat dibuatkan metadatanya tanpa mengubah gambar. Temuan lain hanya ditampilkan." />
+                    <ItemsControl ItemsSource="{Binding Inventory}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,6">
+                                    <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanCreateMetadata}" VerticalAlignment="Center"
+                                              Margin="0,0,8,0" AutomationProperties.Name="{Binding Path}" />
+                                    <ContentControl DockPanel.Dock="Right" Content="{Binding Kind}" Focusable="False" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Path}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5" />
+                                        <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Style="{StaticResource Button.Base}" Content="Buat metadata terpilih ke draft" HorizontalAlignment="Left" Margin="0,8,0,0"
+                            Command="{Binding MetadataCommand}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

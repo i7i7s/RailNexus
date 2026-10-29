@@ -1,0 +1,103 @@
+<UserControl x:Class="RailNexus.App.Views.PbrView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RailNexus.App.Core.ViewModels;assembly=RailNexus.App.Core">
+    <!-- UI-16 Perakit tekstur PBR -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24,20">
+            <TextBlock Text="Perakit tekstur PBR" Style="{StaticResource Text.H1}" />
+            <TextBlock Text="{Binding Hint}" Style="{StaticResource Text.Caption}" Margin="0,4,0,12" />
+            <ItemsControl ItemsSource="{Binding Slots}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Margin="0,0,10,10">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold"><Run Text="Kanal output " /><Run Text="{Binding Name, Mode=OneWay}" /></TextBlock>
+                                <TextBlock Text="Arti kanal (catatan Anda, mis. metallic)" Style="{StaticResource Text.Caption}" Margin="0,6,0,2" />
+                                <TextBox Text="{Binding Meaning, UpdateSourceTrigger=PropertyChanged}" MinHeight="32" AutomationProperties.Name="Arti kanal" />
+                                <CheckBox Content="Pakai nilai konstan" IsChecked="{Binding UseConstant}" Margin="0,8,0,4" />
+                                <DockPanel Visibility="{Binding UseConstant, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Constant}" Width="32" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <Slider Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding Constant}"
+                                            AutomationProperties.Name="Nilai konstan 0 sampai 255" />
+                                </DockPanel>
+                                <StackPanel Visibility="{Binding UseConstant, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Pilih gambar…" Click="PickImage_Click" Margin="8,0,0,0" />
+                                        <TextBlock Text="{Binding ImagePath, TargetNullValue='Belum ada gambar'}" Style="{StaticResource Text.Mono}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                    <ComboBox ItemsSource="{x:Static vm:ChannelSlot.ChannelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                              SelectedValue="{Binding Channel}" MinHeight="32" Margin="0,6,0,0" AutomationProperties.Name="Kanal sumber" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Nama output (tanpa .tga)" Style="{StaticResource Text.H3}" />
+                            <TextBox Text="{Binding OutputName, UpdateSourceTrigger=PropertyChanged, Delay=300}" AutomationProperties.Name="Nama output" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Subfolder tujuan" Style="{StaticResource Text.H3}" />
+                            <TextBox Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged, Delay=300}" AutomationProperties.Name="Subfolder tujuan" />
+                        </StackPanel>
+                    </Grid>
+                    <DockPanel Margin="0,8,0,0" Visibility="{Binding IsAssetMode, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Pilih folder tujuan…" Click="PickExport_Click" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding ExportFolder, TargetNullValue='Folder tujuan belum dipilih'}" Style="{StaticResource Text.Mono}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <Border Margin="0,8,0,0" Padding="10" CornerRadius="6" Background="#FBEFD5" Visibility="{Binding CollisionText, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding CollisionText}" Foreground="#784C00" TextWrapping="Wrap" />
+                            <ComboBox ItemsSource="{x:Static vm:TextureSourceItem.CollisionOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      SelectedValue="{Binding Collision}" MinHeight="32" Margin="0,6,0,0" HorizontalAlignment="Left" MinWidth="260" />
+                        </StackPanel>
+                    </Border>
+                    <Button Style="{StaticResource Button.Base}" Content="Rakit dan periksa" Command="{Binding PackCommand}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,12,0,0"
+                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
+            <Grid Margin="0,12,0,0" Visibility="{Binding Preview, Converter={StaticResource VisibleWhen}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="128" Height="128" Background="{StaticResource Brush.Checker}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" VerticalAlignment="Top">
+                    <Image Source="{Binding Preview, Converter={StaticResource RasterToBitmap}}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                </Border>
+                <StackPanel Grid.Column="1">
+                    <ItemsControl ItemsSource="{Binding Report}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Notes}" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource Text.Caption}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

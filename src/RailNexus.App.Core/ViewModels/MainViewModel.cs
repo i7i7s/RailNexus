@@ -13,22 +13,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private const string NotYet = "Belum tersedia di versi ini.";
 
     private readonly IConnectionService _connections;
+    private readonly SettingsStore? _settings;
+    private readonly IAudioPlayer _audio;
     private AppSession? _session;
     private IPage _page;
     private LibraryViewModel? _library;
     private AssetWorkspace? _active;
+    private AssetWorkspace? _lastAsset;
     private DraftPanelViewModel? _draft;
 
-    public MainViewModel(IConnectionService connections)
+    public MainViewModel(IConnectionService connections, SettingsStore? settings = null, IAudioPlayer? audio = null)
     {
         _connections = connections;
+        _settings = settings;
+        _audio = audio ?? new NullAudioPlayer();
         Nav =
         [
             new NavItem("pustaka", "Pustaka", "Sambungkan ke Trainz terlebih dahulu."),
-            new NavItem("dependency", "Dependency", NotYet),
-            new NavItem("perbaikan", "Perbaikan", NotYet),
-            new NavItem("workshop", "Workshop", NotYet),
-            new NavItem("riwayat", "Riwayat", NotYet),
+            new NavItem("dependency", "Dependency", "Buka aset dari Pustaka terlebih dahulu."),
+            new NavItem("perbaikan", "Perbaikan", "Sambungkan ke Trainz terlebih dahulu."),
+            new NavItem("workshop", "Workshop", null),
+            new NavItem("riwayat", "Riwayat", "Sambungkan ke Trainz terlebih dahulu."),
             new NavItem("pengaturan", "Pengaturan", null),
         ];
         NavigateCommand = new ParamCommand<NavItem>(Navigate, n => n.IsEnabled);
@@ -46,7 +51,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _page;
         private set
         {
+            var old = _page;
             if (!Set(ref _page, value)) return;
+            (old as IDisposable)?.Dispose();
             BackCommand.Refresh();
             OnPropertyChanged(nameof(ShowDraftPanel));
         }
@@ -64,15 +71,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _active;
         private set
         {
+            var previous = _active;
             if (!Set(ref _active, value)) return;
+            if (previous is not null) previous.Changed -= OnActiveChanged;
+            if (value is not null) value.Changed += OnActiveChanged;
+            OnPropertyChanged(nameof(ActiveThumbnail));
             OnPropertyChanged(nameof(ActiveStatus));
             OnPropertyChanged(nameof(ShowDraftPanel));
             if (Draft is not null) Draft.Workspace = value;
         }
     }
 
+    /// <summary>Thumbnail aset aktif (byte JPG/PNG); diperbarui setelah isi aset terbaca.</summary>
+    public byte[]? ActiveThumbnail => ActiveAsset?.Thumbnail;
+
+    private void OnActiveChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(ActiveThumbnail));
+
     public StatusLabel? ActiveStatus => ActiveAsset is null ? null : Labels.Asset(ActiveAsset.Entry.State);
-    public bool ShowDraftPanel => ActiveAsset is not null && CurrentPage is EditHubViewModel or ReplaceViewModel;
+    public bool ShowDraftPanel => ActiveAsset is not null &&
+        CurrentPage is EditHubViewModel or ReplaceViewModel or EditorViewModel or DependencyViewModel or RepairViewModel or SoundViewModel or CargoViewModel
+            or TextureViewModel { IsAssetMode: true } or PbrViewModel { IsAssetMode: true };
 
     public StatusLabel Connection => _session is null ? new("Belum terhubung", Tone.Mute)
         : _session.Runner is null ? new("Terhubung · hanya baca", Tone.Warn)
@@ -82,12 +100,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void OnConnected(AppSession session)
     {
-        _session?.Dispose();
+        // Draft tetap milik profil yang sama (AC-21); menyambung ulang ke profil itu tidak menghapusnya.
+        if (_session is { } old)
+        {
+            if (old.ProfileLabel == session.ProfileLabel)
+                foreach (var (k, ws) in old.Workspaces)
+                {
+                    ws.InvalidateConfig();
+                    session.Workspaces[k] = ws;
+                }
+            old.Dispose();
+        }
         _session = session;
+        _library = null;
+        if (_lastAsset is { } last && !session.Workspaces.ContainsValue(last))
+        {
+            _lastAsset = null;
+            Nav.Single(n => n.Key == "dependency").DisabledReason = "Buka aset dari Pustaka terlebih dahulu.";
+        }
+        if (_settings is not null && session.InstallationFolder is { } folder && _settings.Settings.TrainzFolder != folder)
+        {
+            _settings.Settings.TrainzFolder = folder;
+            try { _settings.Save(); } catch (IOException) { } // pengaturan folder hanya kenyamanan
+        }
         Draft = new DraftPanelViewModel(session);
         // Setelah transaksi, isi aset dibaca ulang agar tugas dan draft berikutnya memakai keadaan terbaru.
         Draft.Applied += (_, _) => { if (CurrentPage is EditHubViewModel hub) Loading = hub.LoadAsync(force: true); };
         Nav[0].DisabledReason = null;
+        Nav.Single(n => n.Key == "riwayat").DisabledReason = null;
+        Nav.Single(n => n.Key == "perbaikan").DisabledReason = null;
         OnPropertyChanged(nameof(Session));
         OnPropertyChanged(nameof(Connection));
         OnPropertyChanged(nameof(ProfileLabel));
@@ -96,17 +137,54 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavItem item)
     {
+        // Berpindah halaman atau profil ditunda selama transaksi tulis berjalan (PRD 7).
+        if (Draft?.ApplyCommand.IsRunning == true) return;
         switch (item.Key)
         {
             case "pustaka":
                 ShowLibrary();
                 break;
+            case "workshop":
+                ActiveAsset = null;
+                CurrentPage = new WorkshopViewModel(OpenTextureFolder, _session is null ? null : () =>
+                    CurrentPage = new BatchViewModel(_session, Path.Combine(_connections.DataRoot, "presets")));
+                MarkActive("workshop");
+                break;
+            case "dependency" when _session is not null && _lastAsset is { } last:
+                ActiveAsset = last;
+                CurrentPage = new DependencyViewModel(_session, last, Draft!.Footer, AssetNav(last));
+                MarkActive("dependency");
+                break;
+            case "perbaikan" when _session is not null:
+                ActiveAsset = null;
+                CurrentPage = new RepairListViewModel(_session, entry =>
+                {
+                    var ws = _session.Workspace(entry);
+                    OpenRepair(ws);
+                    if (ws.Document is null) Loading = ((RepairViewModel)CurrentPage).CheckCommand.ExecuteAsync();
+                });
+                MarkActive("perbaikan");
+                break;
+            case "riwayat" when _session is not null:
+                ActiveAsset = null;
+                CurrentPage = new HistoryViewModel(_session);
+                MarkActive("riwayat");
+                break;
             case "pengaturan":
                 ActiveAsset = null;
-                CurrentPage = new ConnectViewModel(_connections, OnConnected);
+                CurrentPage = _settings is null || _session is null
+                    ? new ConnectViewModel(_connections, OnConnected)
+                    : new SettingsViewModel(_settings, _connections, _session, ShowConnect);
                 MarkActive("pengaturan");
                 break;
         }
+    }
+
+    private void ShowConnect()
+    {
+        ActiveAsset = null;
+        CurrentPage = new ConnectViewModel(_connections, OnConnected);
+        MarkActive("pengaturan");
     }
 
     public void ShowLibrary()
@@ -125,7 +203,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_session is null || Draft is null) return;
         var ws = _session.Workspace(entry);
         ActiveAsset = ws;
-        var hub = new EditHubViewModel(_session, ws, Draft.Footer, OpenRole, ShowLibrary);
+        RememberAsset(ws);
+        var hub = NewHub(ws);
         CurrentPage = hub;
         MarkActive("pustaka");
         await hub.LoadAsync();
@@ -135,12 +214,68 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (_session is null || Draft is null || ActiveAsset is null) return;
         var ws = ActiveAsset;
-        CurrentPage = new ReplaceViewModel(_session, ws, role, Draft.Footer, () =>
-        {
-            var hub = new EditHubViewModel(_session, ws, Draft.Footer, OpenRole, ShowLibrary);
-            CurrentPage = hub;
-            Loading = hub.LoadAsync();
-        });
+        CurrentPage = new ReplaceViewModel(_session, ws, role, Draft.Footer, () => BackToHub(ws), _audio);
+    }
+
+    private string StagingRoot => Path.Combine(_connections.DataRoot, "staging");
+
+    private EditHubViewModel NewHub(AssetWorkspace ws) =>
+        new(_session!, ws, Draft!.Footer, new HubActions(
+            OpenRole, ShowLibrary,
+            OpenHistory: () => OpenAssetHistory(ws),
+            OpenEditor: () => OpenEditor(ws),
+            OpenTexture: () => OpenTexture(ws),
+            OpenDependency: () => CurrentPage = new DependencyViewModel(_session!, ws, Draft!.Footer, AssetNav(ws)),
+            OpenRepair: () => OpenRepair(ws),
+            OpenSound: () => CurrentPage = new SoundViewModel(ws, _audio, Draft!.Footer, () => BackToHub(ws)),
+            OpenCargo: () => CurrentPage = new CargoViewModel(_session!, ws, Draft!.Footer, () => BackToHub(ws))));
+
+    private AssetNavigation AssetNav(AssetWorkspace ws) =>
+        new(OpenRole, entry => Loading = OpenAssetAsync(entry), () => OpenTexture(ws), () => OpenEditor(ws), () => BackToHub(ws));
+
+    private void OpenTexture(AssetWorkspace ws) => CurrentPage = new TextureViewModel(ws, StagingRoot, () => BackToHub(ws),
+        () => CurrentPage = new PbrViewModel(ws, StagingRoot, () => OpenTexture(ws)));
+
+    private void OpenRepair(AssetWorkspace ws)
+    {
+        ActiveAsset = ws;
+        CurrentPage = new RepairViewModel(_session!, ws, Draft!.Footer, AssetNav(ws));
+        MarkActive("perbaikan");
+    }
+
+    private void OpenTextureFolder()
+    {
+        ActiveAsset = null;
+        CurrentPage = new TextureViewModel(null, StagingRoot, () => Navigate(Nav.Single(n => n.Key == "workshop")),
+            () => CurrentPage = new PbrViewModel(null, StagingRoot, OpenTextureFolder));
+        MarkActive("workshop");
+    }
+
+    private void OpenEditor(AssetWorkspace ws)
+    {
+        if (Draft is null) return;
+        CurrentPage = new EditorViewModel(ws, Draft.Footer, () => BackToHub(ws));
+    }
+
+    private void RememberAsset(AssetWorkspace ws)
+    {
+        _lastAsset = ws;
+        Nav.Single(n => n.Key == "dependency").DisabledReason = null;
+    }
+
+    private void BackToHub(AssetWorkspace ws)
+    {
+        ActiveAsset = ws;
+        var hub = NewHub(ws);
+        CurrentPage = hub;
+        MarkActive("pustaka");
+        Loading = hub.LoadAsync();
+    }
+
+    private void OpenAssetHistory(AssetWorkspace ws)
+    {
+        if (_session is null) return;
+        CurrentPage = new HistoryViewModel(_session, ws.Entry.Kuid, () => BackToHub(ws));
     }
 
     private void MarkActive(string key)

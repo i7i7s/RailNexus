@@ -23,6 +23,42 @@
             <DataTemplate DataType="{x:Type vm:ReplaceViewModel}">
                 <views:ReplaceView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:HistoryViewModel}">
+                <views:HistoryView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+                <views:SettingsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:EditorViewModel}">
+                <views:EditorView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:WorkshopViewModel}">
+                <views:WorkshopView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:TextureViewModel}">
+                <views:TextureView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:DependencyViewModel}">
+                <views:DependencyView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:RepairViewModel}">
+                <views:RepairView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:RepairListViewModel}">
+                <views:RepairListView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SoundViewModel}">
+                <views:SoundView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:CargoViewModel}">
+                <views:CargoView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:BatchViewModel}">
+                <views:BatchView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:PbrViewModel}">
+                <views:PbrView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DraftPanelViewModel}">
                 <views:DraftPanelView />
             </DataTemplate>

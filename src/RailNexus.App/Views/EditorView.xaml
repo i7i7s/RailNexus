@@ -1,0 +1,187 @@
+<UserControl x:Class="RailNexus.App.Views.EditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RailNexus.App.Core.ViewModels;assembly=RailNexus.App.Core">
+    <!-- UI-12 Editor aset (terbatas) -->
+    <DockPanel Margin="24,20">
+        <TextBlock DockPanel.Dock="Top" Text="Editor aset" Style="{StaticResource Text.H1}" />
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Text.Caption}" Margin="0,4,0,8"
+                   Text="Perubahan masuk ke draft lewat Simpan rencana; aset baru ditulis saat Terapkan &amp; Selesai. Tag yang tidak dikenal tidak pernah dibuang." />
+        <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,8"
+                Visibility="{Binding Unavailable, Converter={StaticResource VisibleWhen}}">
+            <TextBlock Text="{Binding Unavailable}" TextWrapping="Wrap" />
+        </Border>
+
+        <TabControl SelectedIndex="{Binding Tab, Converter={StaticResource EnumIndex}, ConverterParameter={x:Type vm:EditorTab}}"
+                    Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}" Padding="16">
+            <TabItem Header="Formulir">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+                        <ItemsControl ItemsSource="{Binding Fields}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,16">
+                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Help}" Style="{StaticResource Text.Caption}" Margin="0,2,0,6" />
+                                        <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, Delay=300}" IsEnabled="{Binding IsEditable}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap" MinHeight="40" MaxHeight="160"
+                                                 VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{Binding Label}" />
+                                        <TextBlock Text="{Binding LockedReason}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0"
+                                                   Visibility="{Binding LockedReason, Converter={StaticResource VisibleWhen}}" />
+                                        <TextBlock Text="Berbeda dari isi asli" Foreground="#784C00" FontSize="12.5" Margin="0,4,0,0"
+                                                   Visibility="{Binding IsChanged, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="Informasi aset" Style="{StaticResource Text.H3}" Margin="0,8,0,6" />
+                        <ItemsControl ItemsSource="{Binding Info}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Key}" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Style="{StaticResource Button.Base}" Content="Simpan rencana" Margin="0,16,0,0" HorizontalAlignment="Left"
+                                Command="{Binding SaveCommand}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Struktur">
+                <TreeView ItemsSource="{Binding Nodes}" BorderThickness="0" AutomationProperties.Name="Struktur config">
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal" Margin="0,2">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Value}" Margin="12,0,0,0" FontFamily="{StaticResource Font.Mono}" FontSize="12.5" />
+                                <TextBlock Margin="12,0,0,0" Style="{StaticResource Text.Caption}">
+                                    <Run Text="{Binding Kind, Mode=OneWay}" /><Run Text=" · baris " /><Run Text="{Binding Line, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </TabItem>
+
+            <TabItem Header="Teks">
+                <Grid>
+                    <!-- Baca saja -->
+                    <DockPanel Visibility="{Binding IsTextEditing, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Sunting teks" Command="{Binding EditTextCommand}" Margin="8,0,0,0"
+                                    ToolTip="Simpan dulu perubahan formulir yang belum masuk draft" />
+                            <TextBlock Text="Cari" Style="{StaticResource Text.H3}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" AutomationProperties.Name="Cari di teks config" />
+                        </DockPanel>
+                        <ListBox ItemsSource="{Binding Lines}" Style="{StaticResource List}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                                 AutomationProperties.Name="Teks config (baca saja)">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListItem}">
+                                    <Setter Property="Padding" Value="8,1" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Number}" Width="44" Foreground="{StaticResource Brush.TextCaption}" TextAlignment="Right" Margin="0,0,12,0" />
+                                            <TextBlock Text="{Binding Text}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Issue}" Foreground="#A3201A" Margin="56,0,0,0" FontFamily="{StaticResource Font.Sans}"
+                                                   Visibility="{Binding Issue, Converter={StaticResource VisibleWhen}}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <!-- Sunting: diperiksa parser sebelum dapat masuk draft (PRD 11.3) -->
+                    <DockPanel Visibility="{Binding IsTextEditing, Converter={StaticResource BoolToVisibility}}">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Batalkan suntingan" Command="{Binding CancelTextCommand}" Margin="8,0,0,0" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Small}" Content="Simpan teks ke draft" Command="{Binding SaveTextCommand}" />
+                            <TextBlock Text="{Binding TextSaveProblem}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding TextProblems}" MaxHeight="120" Margin="0,8,0,0" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Foreground="#A3201A" TextWrapping="Wrap">
+                                        <Run Text="Baris " /><Run Text="{Binding Line, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Message, Mode=OneWay}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBox Text="{Binding EditableText, UpdateSourceTrigger=PropertyChanged, Delay=400}" AcceptsReturn="True" AcceptsTab="True"
+                                 FontFamily="{StaticResource Font.Mono}" FontSize="12.5" VerticalContentAlignment="Top" Padding="8"
+                                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
+                                 AutomationProperties.Name="Sunting teks config" />
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="{Binding ProblemsLabel}">
+                <ListBox ItemsSource="{Binding Problems}" Style="{StaticResource List}" AutomationProperties.Name="Masalah config">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <ContentControl Content="{Binding Severity}" Focusable="False" />
+                                <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap">
+                                    <Run Text="Baris " /><Run Text="{Binding Line, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Message, Mode=OneWay}" />
+                                    <Run Text="{Binding Code, Mode=OneWay}" Foreground="{StaticResource Brush.TextCaption}" FontFamily="{StaticResource Font.Mono}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </TabItem>
+
+            <TabItem Header="Perubahan">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding ChangesError}" Foreground="#A3201A" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Visibility="{Binding ChangesError, Converter={StaticResource VisibleWhen}}" />
+                    <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding OtherChanges}" Margin="0,0,0,8" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource Text.Caption}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Text.Caption}" Text="Belum ada perubahan pada config."
+                               Visibility="{Binding Changes.Count, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Changes}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Row" Padding="4,1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding OldNumber}" Width="40" TextAlignment="Right" Foreground="{StaticResource Brush.TextCaption}" />
+                                            <TextBlock Text="{Binding NewNumber}" Width="40" TextAlignment="Right" Foreground="{StaticResource Brush.TextCaption}" />
+                                            <TextBlock Text="{Binding Marker}" Width="20" TextAlignment="Center" FontWeight="Bold" />
+                                            <TextBlock Text="{Binding Text}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Added">
+                                            <Setter TargetName="Row" Property="Background" Value="#E3F2E8" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Removed">
+                                            <Setter TargetName="Row" Property="Background" Value="#FBE6E3" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>
